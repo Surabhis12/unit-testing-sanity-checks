@@ -5,7 +5,6 @@ on:
     branches:
       - "**"
 
-# ✅ Fix 1: Grant workflow permissions to comment and label PRs
 permissions:
   contents: read
   pull-requests: write
@@ -16,7 +15,6 @@ jobs:
     runs-on: ubuntu-latest
 
     steps:
-      # ✅ Fix 2: Checkout full history (needed for git diff)
       - name: Checkout code
         uses: actions/checkout@v4
         with:
@@ -25,12 +23,12 @@ jobs:
       - name: Detect language used in PR
         id: detect
         run: |
-          echo "Detecting language from PR changes..."
+          echo "🔍 Detecting language from PR changes..."
           BASE_SHA=${{ github.event.pull_request.base.sha }}
           HEAD_SHA=${{ github.event.pull_request.head.sha }}
 
           FILES=$(git diff --name-only $BASE_SHA $HEAD_SHA || true)
-          echo "Changed files:"
+          echo "📄 Changed files:"
           echo "$FILES"
 
           LANGS=""
@@ -53,8 +51,10 @@ jobs:
             exit 0
           fi
 
-          echo "Detected languages: $LANGS"
+          echo "✅ Detected languages: $LANGS"
           echo "langs=$LANGS" >> $GITHUB_OUTPUT
+          # 👇 Added line — clearly shows detected language in Action log
+          echo "Detected language(s): $LANGS"
 
       - name: Run sanity checks
         id: sanity
@@ -65,7 +65,7 @@ jobs:
           RESULT="PASS"
 
           for LANG in $LANGS; do
-            echo "Running checks for $LANG..."
+            echo "🧪 Running checks for $LANG..."
             case "$LANG" in
               cpp)
                 bash scripts/run_cppcheck.sh || RESULT="FAIL"
@@ -94,7 +94,6 @@ jobs:
           echo "Final result: $RESULT"
           echo "status=$RESULT" >> $GITHUB_OUTPUT
 
-      # ✅ Fix 3: Comment on PR (now has permissions)
       - name: Add PR comment
         if: always()
         uses: marocchino/sticky-pull-request-comment@v2
@@ -105,11 +104,10 @@ jobs:
             - Status: **${{ steps.sanity.outputs.status }}**
             - Detected languages: ${{ steps.detect.outputs.langs }}
 
-      # ✅ Fix 4: Label PR (will work now with write permissions)
       - name: Label PR
         if: always()
         uses: actions-ecosystem/action-add-labels@v1
         with:
           github_token: ${{ secrets.GITHUB_TOKEN }}
           labels: |
-            Sanity Check
+            Sanity Check , make changes accordingly
