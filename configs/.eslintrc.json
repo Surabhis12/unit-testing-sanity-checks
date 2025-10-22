@@ -1,0 +1,34 @@
+echo "⚙️  Creating linting configurations..."
+
+cat > configs/.eslintrc.json <<'EOF'
+{
+  "env": {
+    "browser": true,
+    "es2021": true,
+    "node": true,
+    "jest": true
+  },
+  "extends": ["eslint:recommended"],
+  "parserOptions": {
+    "ecmaVersion": 2021,
+    "sourceType": "module"
+  },
+  "rules": {
+    "no-unused-vars": ["error", { "vars": "all", "args": "after-used" }],
+    "no-undef": "error",
+    "no-console": "warn",
+    "no-eval": "error",
+    "eqeqeq": ["error", "always"],
+    "semi": ["error", "always"],
+    "quotes": ["error", "single"],
+    "no-var": "warn",
+    "prefer-const": "warn",
+    "no-unreachable": "error",
+    "complexity": ["warn", 10],
+    "max-params": ["warn", 5]
+  }
+}
+EOF
+
+echo "✅ ESLint config created"
+echo ""
