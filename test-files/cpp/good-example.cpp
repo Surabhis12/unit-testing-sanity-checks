@@ -1,11 +1,5 @@
 #include <iostream>
-#include <vector>
-#include <string>
 
-// Simple calculator class with proper error handling
-class Calculator {
-private:
-    double result;
 
 public:
     Calculator() : result(0.0) {}
