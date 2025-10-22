@@ -1,0 +1,167 @@
+name: Sanity Check Workflow
+
+on:
+  pull_request:
+    types: [opened, synchronize, reopened]
+    # CONFIGURATION OPTIONS - Choose one:
+    
+    # Option 1: Run on PRs to ALL branches (CURRENT - RECOMMENDED)
+    # (No branches filter needed - leave as is)
+    
+    # Option 2: Run ONLY on PRs targeting 'main' branch
+    # Uncomment the lines below:
+    # branches:
+    #   - main
+    
+    # Option 3: Run on PRs to multiple specific branches
+    # Uncomment and modify the lines below:
+    # branches:
+    #   - main
+    #   - develop
+    #   - release/*
+
+permissions:
+  contents: read
+  pull-requests: write
+  issues: write
+
+jobs:
+  sanity-check:
+    runs-on: ubuntu-latest
+    
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v3
+        with:
+          fetch-depth: 0
+      
+      - name: Get changed files
+        id: changed-files
+        uses: tj-actions/changed-files@v39
+        with:
+          files: |
+            **/*.c
+            **/*.cpp
+            **/*.h
+            **/*.hpp
+            **/*.js
+            **/*.jsx
+            **/*.ts
+            **/*.tsx
+            **/*.rs
+            **/*.kt
+            **/*.swift
+            **/*.java
+            **/*.dart
+      
+      - name: Set up Node.js
+        if: steps.changed-files.outputs.any_changed == 'true'
+        uses: actions/setup-node@v3
+        with:
+          node-version: '18'
+      
+      - name: Set up Rust
+        if: steps.changed-files.outputs.any_changed == 'true'
+        uses: actions-rs/toolchain@v1
+        with:
+          toolchain: stable
+          components: clippy
+          override: true
+      
+      - name: Set up Java
+        if: steps.changed-files.outputs.any_changed == 'true'
+        uses: actions/setup-java@v3
+        with:
+          distribution: 'temurin'
+          java-version: '17'
+      
+      - name: Install linting tools
+        if: steps.changed-files.outputs.any_changed == 'true'
+        run: |
+          # C/C++
+          sudo apt-get update
+          sudo apt-get install -y cppcheck
+          
+          # JavaScript/TypeScript
+          npm install -g eslint
+          
+          # Kotlin
+          curl -sSLO https://github.com/pinterest/ktlint/releases/download/0.50.0/ktlint
+          chmod a+x ktlint
+          sudo mv ktlint /usr/local/bin/
+          
+          # Flutter/Dart
+          git clone https://github.com/flutter/flutter.git -b stable --depth 1
+          echo "$GITHUB_WORKSPACE/flutter/bin" >> $GITHUB_PATH
+      
+      - name: Make scripts executable
+        if: steps.changed-files.outputs.any_changed == 'true'
+        run: chmod +x scripts/*.sh
+      
+      - name: Detect languages and run checks
+        if: steps.changed-files.outputs.any_changed == 'true'
+        id: run-checks
+        run: |
+          echo "${{ steps.changed-files.outputs.all_changed_files }}" > changed_files.txt
+          bash scripts/detect-language.sh
+          bash scripts/run-checks.sh > check_results.txt 2>&1
+          
+          if [ $? -eq 0 ]; then
+            echo "status=success" >> $GITHUB_OUTPUT
+          else
+            echo "status=failure" >> $GITHUB_OUTPUT
+          fi
+      
+      - name: Post results as PR comment
+        if: steps.changed-files.outputs.any_changed == 'true'
+        uses: actions/github-script@v6
+        with:
+          github-token: ${{secrets.GITHUB_TOKEN}}
+          script: |
+            const fs = require('fs');
+            const results = fs.readFileSync('check_results.txt', 'utf8');
+            const status = '${{ steps.run-checks.outputs.status }}';
+            
+            const statusEmoji = status === 'success' ? '✅' : '❌';
+            const statusText = status === 'success' ? 'PASSED' : 'FAILED';
+            
+            const body = `## ${statusEmoji} Sanity Check ${statusText}
+            
+            <details>
+            <summary>Click to view detailed results</summary>
+            
+            \`\`\`
+            ${results}
+            \`\`\`
+            
+            </details>
+            
+            ---
+            *Automated sanity checks completed at ${new Date().toISOString()}*`;
+            
+            await github.rest.issues.createComment({
+              issue_number: context.issue.number,
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              body: body
+            });
+      
+      - name: Add Sanity Check label
+        if: steps.changed-files.outputs.any_changed == 'true'
+        uses: actions/github-script@v6
+        with:
+          github-token: ${{secrets.GITHUB_TOKEN}}
+          script: |
+            const status = '${{ steps.run-checks.outputs.status }}';
+            const label = status === 'success' ? 'sanity-check-passed' : 'sanity-check-failed';
+            
+            await github.rest.issues.addLabels({
+              issue_number: context.issue.number,
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              labels: [label]
+            });
+      
+      - name: Fail workflow if checks failed
+        if: steps.run-checks.outputs.status == 'failure'
+        run: exit 1
