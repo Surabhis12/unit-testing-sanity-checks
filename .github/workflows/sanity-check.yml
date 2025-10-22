@@ -5,19 +5,34 @@ on:
     branches:
       - "**"
 
+# ✅ Fix 1: Grant workflow permissions to comment and label PRs
+permissions:
+  contents: read
+  pull-requests: write
+  issues: write
+
 jobs:
   sanity-check:
     runs-on: ubuntu-latest
 
     steps:
+      # ✅ Fix 2: Checkout full history (needed for git diff)
       - name: Checkout code
         uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
 
       - name: Detect language used in PR
         id: detect
         run: |
           echo "Detecting language from PR changes..."
-          FILES=$(git diff --name-only ${{ github.event.pull_request.base.sha }} ${{ github.event.pull_request.head.sha }})
+          BASE_SHA=${{ github.event.pull_request.base.sha }}
+          HEAD_SHA=${{ github.event.pull_request.head.sha }}
+
+          FILES=$(git diff --name-only $BASE_SHA $HEAD_SHA || true)
+          echo "Changed files:"
+          echo "$FILES"
+
           LANGS=""
 
           for FILE in $FILES; do
@@ -32,34 +47,54 @@ jobs:
             esac
           done
 
+          if [ -z "$LANGS" ]; then
+            echo "⚠️ No recognized languages found in PR. Exiting successfully."
+            echo "langs=none" >> $GITHUB_OUTPUT
+            exit 0
+          fi
+
           echo "Detected languages: $LANGS"
           echo "langs=$LANGS" >> $GITHUB_OUTPUT
 
       - name: Run sanity checks
         id: sanity
+        if: ${{ steps.detect.outputs.langs != 'none' }}
         run: |
           set -e
           LANGS="${{ steps.detect.outputs.langs }}"
-          RESULT=""
+          RESULT="PASS"
 
           for LANG in $LANGS; do
+            echo "Running checks for $LANG..."
             case "$LANG" in
-              cpp) ./scripts/run_cppcheck.sh || RESULT="FAIL" ;;
-              js) ./scripts/run_eslint.sh || RESULT="FAIL" ;;
-              rust) ./scripts/run_clippy.sh || RESULT="FAIL" ;;
-              kotlin) ./scripts/run_ktlint.sh || RESULT="FAIL" ;;
-              swift) ./scripts/run_swiftlint.sh || RESULT="FAIL" ;;
-              java) ./scripts/run_javac.sh || RESULT="FAIL" ;;
-              flutter) ./scripts/run_flutter_analyze.sh || RESULT="FAIL" ;;
+              cpp)
+                bash scripts/run_cppcheck.sh || RESULT="FAIL"
+                ;;
+              js)
+                bash scripts/run_eslint.sh || RESULT="FAIL"
+                ;;
+              rust)
+                bash scripts/run_clippy.sh || RESULT="FAIL"
+                ;;
+              kotlin)
+                bash scripts/run_ktlint.sh || RESULT="FAIL"
+                ;;
+              swift)
+                bash scripts/run_swiftlint.sh || RESULT="FAIL"
+                ;;
+              java)
+                bash scripts/run_javac.sh || RESULT="FAIL"
+                ;;
+              flutter)
+                bash scripts/run_flutter_analyze.sh || RESULT="FAIL"
+                ;;
             esac
           done
 
-          if [ "$RESULT" = "FAIL" ]; then
-            echo "status=failed" >> $GITHUB_OUTPUT
-          else
-            echo "status=passed" >> $GITHUB_OUTPUT
-          fi
+          echo "Final result: $RESULT"
+          echo "status=$RESULT" >> $GITHUB_OUTPUT
 
+      # ✅ Fix 3: Comment on PR (now has permissions)
       - name: Add PR comment
         if: always()
         uses: marocchino/sticky-pull-request-comment@v2
@@ -70,6 +105,7 @@ jobs:
             - Status: **${{ steps.sanity.outputs.status }}**
             - Detected languages: ${{ steps.detect.outputs.langs }}
 
+      # ✅ Fix 4: Label PR (will work now with write permissions)
       - name: Label PR
         if: always()
         uses: actions-ecosystem/action-add-labels@v1
