@@ -100,25 +100,39 @@ jobs:
         if: steps.changed-files.outputs.any_changed == 'true'
         id: run-checks
         run: |
-          chmod +x scripts/*.sh
-          
-          # Run checks without exiting on error
-          bash scripts/run-checks.sh > check_results.txt 2>&1 || true
-          
-          # Check if the results file contains "PASSED" or "FAILED"
-          if grep -q "✅ ALL SANITY CHECKS PASSED" check_results.txt; then
-            echo "status=success" >> $GITHUB_OUTPUT
-            echo "✅ Checks PASSED"
-          elif grep -q "❌ SANITY CHECKS FAILED" check_results.txt; then
-            echo "status=failure" >> $GITHUB_OUTPUT
-            echo "❌ Checks FAILED"
-          else
-            echo "status=unknown" >> $GITHUB_OUTPUT
-            echo "⚠️ Could not determine check status"
-          fi
-          
-          echo "=== Full Check Results ==="
-          cat check_results.txt
+                chmod +x scripts/*.sh
+                
+                echo "=== Running Checks ==="
+                bash scripts/run-checks.sh > check_results.txt 2>&1 || true
+                
+                echo ""
+                echo "=== Checking Results ==="
+                cat check_results.txt
+                
+                echo ""
+                echo "=== Looking for PASSED marker ==="
+                grep "ALL SANITY CHECKS PASSED" check_results.txt || echo "NOT FOUND"
+                
+                echo ""
+                echo "=== Looking for FAILED marker ==="
+                grep "SANITY CHECKS FAILED" check_results.txt || echo "NOT FOUND"
+                
+                echo ""
+                echo "=== Setting Status ==="
+                if grep -q "ALL SANITY CHECKS PASSED" check_results.txt; then
+                  echo "status=success" >> $GITHUB_OUTPUT
+                  echo "✅ STATUS SET TO: success"
+                elif grep -q "SANITY CHECKS FAILED" check_results.txt; then
+                  echo "status=failure" >> $GITHUB_OUTPUT
+                  echo "❌ STATUS SET TO: failure"
+                else
+                  echo "status=unknown" >> $GITHUB_OUTPUT
+                  echo "⚠️ STATUS SET TO: unknown (no marker found)"
+                fi
+                
+                echo ""
+                echo "=== Output Status Value ==="
+                echo "Status variable: ${{ steps.run-checks.outputs.status }}"
       
       - name: Post results as PR comment
         if: steps.changed-files.outputs.any_changed == 'true' && always()
