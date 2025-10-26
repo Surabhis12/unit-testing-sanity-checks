@@ -3,6 +3,22 @@ name: Sanity Check Workflow
 on:
   pull_request:
     types: [opened, synchronize, reopened]
+    # CONFIGURATION OPTIONS - Choose one:
+    
+    # Option 1: Run on PRs to ALL branches (CURRENT - RECOMMENDED)
+    # (No branches filter needed - leave as is)
+    
+    # Option 2: Run ONLY on PRs targeting 'main' branch
+    # Uncomment the lines below:
+    # branches:
+    #   - main
+    
+    # Option 3: Run on PRs to multiple specific branches
+    # Uncomment and modify the lines below:
+    # branches:
+    #   - main
+    #   - develop
+    #   - release/*
 
 permissions:
   contents: read
@@ -62,15 +78,19 @@ jobs:
       - name: Install linting tools
         if: steps.changed-files.outputs.any_changed == 'true'
         run: |
+          # C/C++
           sudo apt-get update
           sudo apt-get install -y cppcheck
           
+          # JavaScript/TypeScript
           npm install -g eslint
           
+          # Kotlin
           curl -sSLO https://github.com/pinterest/ktlint/releases/download/0.50.0/ktlint
           chmod a+x ktlint
           sudo mv ktlint /usr/local/bin/
           
+          # Flutter/Dart
           git clone https://github.com/flutter/flutter.git -b stable --depth 1
           echo "$GITHUB_WORKSPACE/flutter/bin" >> $GITHUB_PATH
       
@@ -81,47 +101,27 @@ jobs:
       - name: Detect languages and run checks
         if: steps.changed-files.outputs.any_changed == 'true'
         id: run-checks
-        continue-on-error: true
         run: |
-          echo "🕵️ Running sanity checks on changed files..."
           echo "${{ steps.changed-files.outputs.all_changed_files }}" > changed_files.txt
           bash scripts/detect-language.sh
-
-          # Disable exit-on-error to capture script exit code
-          set +e
           bash scripts/run-checks.sh > check_results.txt 2>&1
-          CHECK_EXIT_CODE=$?
-          set -e
-
-          # Mark workflow result
-          if [ $CHECK_EXIT_CODE -eq 0 ]; then
-            echo "✅ All sanity checks PASSED!"
+          
+          if [ $? -eq 0 ]; then
             echo "status=success" >> $GITHUB_OUTPUT
           else
-            echo "❌ Sanity checks FAILED! (Exit code: $CHECK_EXIT_CODE)"
             echo "status=failure" >> $GITHUB_OUTPUT
           fi
-
-          echo "--- RESULTS ---"
-          cat check_results.txt
-          echo "---------------"
       
       - name: Post results as PR comment
-        if: steps.changed-files.outputs.any_changed == 'true' && always()
+        if: steps.changed-files.outputs.any_changed == 'true'
         uses: actions/github-script@v6
         with:
           github-token: ${{secrets.GITHUB_TOKEN}}
           script: |
             const fs = require('fs');
-            let results = 'No results file found';
-            
-            try {
-              results = fs.readFileSync('check_results.txt', 'utf8');
-            } catch (error) {
-              results = 'Error reading results: ' + error.message;
-            }
-            
+            const results = fs.readFileSync('check_results.txt', 'utf8');
             const status = '${{ steps.run-checks.outputs.status }}';
+            
             const statusEmoji = status === 'success' ? '✅' : '❌';
             const statusText = status === 'success' ? 'PASSED' : 'FAILED';
             
@@ -147,26 +147,14 @@ jobs:
             });
       
       - name: Add Sanity Check label
-        if: steps.changed-files.outputs.any_changed == 'true' && always()
+        if: steps.changed-files.outputs.any_changed == 'true'
         uses: actions/github-script@v6
         with:
           github-token: ${{secrets.GITHUB_TOKEN}}
           script: |
             const status = '${{ steps.run-checks.outputs.status }}';
             const label = status === 'success' ? 'sanity-check-passed' : 'sanity-check-failed';
-            const opposite = status === 'success' ? 'sanity-check-failed' : 'sanity-check-passed';
-
-            try {
-              await github.rest.issues.removeLabel({
-                issue_number: context.issue.number,
-                owner: context.repo.owner,
-                repo: context.repo.repo,
-                name: opposite
-              });
-            } catch (error) {
-              // Label might not exist; ignore.
-            }
-
+            
             await github.rest.issues.addLabels({
               issue_number: context.issue.number,
               owner: context.repo.owner,
@@ -174,17 +162,6 @@ jobs:
               labels: [label]
             });
       
-      - name: Write summary
-        if: always()
-        run: |
-          if [ "${{ steps.run-checks.outputs.status }}" = "success" ]; then
-            echo "### ✅ Sanity Check Passed" >> $GITHUB_STEP_SUMMARY
-          else
-            echo "### ❌ Sanity Check Failed" >> $GITHUB_STEP_SUMMARY
-          fi
-      
       - name: Fail workflow if checks failed
         if: steps.run-checks.outputs.status == 'failure'
-        run: |
-          echo "::error::Sanity checks failed. Please fix the issues before merging."
-          exit 1
+        run: exit 1
