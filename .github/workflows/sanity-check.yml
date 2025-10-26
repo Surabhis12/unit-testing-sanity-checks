@@ -62,19 +62,15 @@ jobs:
       - name: Install linting tools
         if: steps.changed-files.outputs.any_changed == 'true'
         run: |
-          # C/C++
           sudo apt-get update
           sudo apt-get install -y cppcheck
           
-          # JavaScript/TypeScript
           npm install -g eslint
           
-          # Kotlin
           curl -sSLO https://github.com/pinterest/ktlint/releases/download/0.50.0/ktlint
           chmod a+x ktlint
           sudo mv ktlint /usr/local/bin/
           
-          # Flutter/Dart
           git clone https://github.com/flutter/flutter.git -b stable --depth 1
           echo "$GITHUB_WORKSPACE/flutter/bin" >> $GITHUB_PATH
       
@@ -87,26 +83,28 @@ jobs:
         id: run-checks
         continue-on-error: true
         run: |
+          echo "🕵️ Running sanity checks on changed files..."
           echo "${{ steps.changed-files.outputs.all_changed_files }}" > changed_files.txt
           bash scripts/detect-language.sh
-          
-          # Disable exit-on-error to capture exit code
+
+          # Disable exit-on-error to capture script exit code
           set +e
           bash scripts/run-checks.sh > check_results.txt 2>&1
           CHECK_EXIT_CODE=$?
           set -e
-          
-          # Set status based on exit code
+
+          # Mark workflow result
           if [ $CHECK_EXIT_CODE -eq 0 ]; then
+            echo "✅ All sanity checks PASSED!"
             echo "status=success" >> $GITHUB_OUTPUT
-            echo "✅ All checks passed"
           else
+            echo "❌ Sanity checks FAILED! (Exit code: $CHECK_EXIT_CODE)"
             echo "status=failure" >> $GITHUB_OUTPUT
-            echo "❌ Checks failed with exit code: $CHECK_EXIT_CODE"
           fi
-          
-          # Display results
+
+          echo "--- RESULTS ---"
           cat check_results.txt
+          echo "---------------"
       
       - name: Post results as PR comment
         if: steps.changed-files.outputs.any_changed == 'true' && always()
@@ -156,27 +154,34 @@ jobs:
           script: |
             const status = '${{ steps.run-checks.outputs.status }}';
             const label = status === 'success' ? 'sanity-check-passed' : 'sanity-check-failed';
-            
-            // Remove opposite label if exists
-            const oppositeLabel = status === 'success' ? 'sanity-check-failed' : 'sanity-check-passed';
+            const opposite = status === 'success' ? 'sanity-check-failed' : 'sanity-check-passed';
+
             try {
               await github.rest.issues.removeLabel({
                 issue_number: context.issue.number,
                 owner: context.repo.owner,
                 repo: context.repo.repo,
-                name: oppositeLabel
+                name: opposite
               });
             } catch (error) {
-              // Ignore if label doesn't exist
+              // Label might not exist; ignore.
             }
-            
-            // Add current label
+
             await github.rest.issues.addLabels({
               issue_number: context.issue.number,
               owner: context.repo.owner,
               repo: context.repo.repo,
               labels: [label]
             });
+      
+      - name: Write summary
+        if: always()
+        run: |
+          if [ "${{ steps.run-checks.outputs.status }}" = "success" ]; then
+            echo "### ✅ Sanity Check Passed" >> $GITHUB_STEP_SUMMARY
+          else
+            echo "### ❌ Sanity Check Failed" >> $GITHUB_STEP_SUMMARY
+          fi
       
       - name: Fail workflow if checks failed
         if: steps.run-checks.outputs.status == 'failure'
