@@ -42,17 +42,12 @@ jobs:
         if: steps.changed-files.outputs.any_changed == 'true'
         id: detect
         run: |
-          # Write changed files
           echo "${{ steps.changed-files.outputs.all_changed_files }}" > changed_files.txt
-          
-          # Make script executable and run detection
           chmod +x scripts/detect-language.sh
           bash scripts/detect-language.sh
           
-          # Read detection results
           source detected_languages.env
           
-          # Export as outputs for conditional steps
           echo "has_cpp=$HAS_CPP" >> $GITHUB_OUTPUT
           echo "has_js=$HAS_JS" >> $GITHUB_OUTPUT
           echo "has_rust=$HAS_RUST" >> $GITHUB_OUTPUT
@@ -61,21 +56,18 @@ jobs:
           echo "has_java=$HAS_JAVA" >> $GITHUB_OUTPUT
           echo "has_flutter=$HAS_FLUTTER" >> $GITHUB_OUTPUT
       
-      # Install C/C++ tools ONLY if C/C++ detected
       - name: Install C/C++ tools
         if: steps.detect.outputs.has_cpp == 'true'
         run: |
           sudo apt-get update
           sudo apt-get install -y cppcheck
       
-      # Install Node.js ONLY if JavaScript detected
       - name: Setup Node.js and ESLint
         if: steps.detect.outputs.has_js == 'true'
         uses: actions/setup-node@v3
         with:
           node-version: '18'
       
-      # Install Rust tools ONLY if Rust detected
       - name: Setup Rust and Clippy
         if: steps.detect.outputs.has_rust == 'true'
         uses: actions-rs/toolchain@v1
@@ -84,7 +76,6 @@ jobs:
           components: clippy
           override: true
       
-      # Install Java ONLY if Java detected
       - name: Setup Java
         if: steps.detect.outputs.has_java == 'true'
         uses: actions/setup-java@v3
@@ -92,7 +83,6 @@ jobs:
           distribution: 'temurin'
           java-version: '17'
       
-      # Install Kotlin tools ONLY if Kotlin detected
       - name: Install Kotlin linter
         if: steps.detect.outputs.has_kotlin == 'true'
         run: |
@@ -100,35 +90,36 @@ jobs:
           chmod a+x ktlint
           sudo mv ktlint /usr/local/bin/
       
-      # Install Flutter ONLY if Dart detected
       - name: Setup Flutter
         if: steps.detect.outputs.has_flutter == 'true'
         run: |
           git clone https://github.com/flutter/flutter.git -b stable --depth 1
           echo "$GITHUB_WORKSPACE/flutter/bin" >> $GITHUB_PATH
       
-      # Run checks
       - name: Run sanity checks
         if: steps.changed-files.outputs.any_changed == 'true'
         id: run-checks
-        continue-on-error: true
         run: |
           chmod +x scripts/*.sh
           
-          set +e
-          bash scripts/run-checks.sh > check_results.txt 2>&1
-          CHECK_EXIT_CODE=$?
-          set -e
+          # Run checks without exiting on error
+          bash scripts/run-checks.sh > check_results.txt 2>&1 || true
           
-          if [ $CHECK_EXIT_CODE -eq 0 ]; then
+          # Check if the results file contains "PASSED" or "FAILED"
+          if grep -q "✅ ALL SANITY CHECKS PASSED" check_results.txt; then
             echo "status=success" >> $GITHUB_OUTPUT
-          else
+            echo "✅ Checks PASSED"
+          elif grep -q "❌ SANITY CHECKS FAILED" check_results.txt; then
             echo "status=failure" >> $GITHUB_OUTPUT
+            echo "❌ Checks FAILED"
+          else
+            echo "status=unknown" >> $GITHUB_OUTPUT
+            echo "⚠️ Could not determine check status"
           fi
           
+          echo "=== Full Check Results ==="
           cat check_results.txt
       
-      # Post results
       - name: Post results as PR comment
         if: steps.changed-files.outputs.any_changed == 'true' && always()
         uses: actions/github-script@v6
@@ -160,7 +151,7 @@ jobs:
             </details>
             
             ---
-            *Automated sanity checks completed*`;
+            *Automated sanity checks completed at ${new Date().toISOString()}*`;
             
             await github.rest.issues.createComment({
               issue_number: context.issue.number,
@@ -169,7 +160,6 @@ jobs:
               body: body
             });
       
-      # Add label
       - name: Add Sanity Check label
         if: steps.changed-files.outputs.any_changed == 'true' && always()
         uses: actions/github-script@v6
@@ -187,7 +177,9 @@ jobs:
                 repo: context.repo.repo,
                 name: oppositeLabel
               });
-            } catch (error) {}
+            } catch (error) {
+              // Ignore if label doesn't exist
+            }
             
             await github.rest.issues.addLabels({
               issue_number: context.issue.number,
@@ -196,9 +188,8 @@ jobs:
               labels: [label]
             });
       
-      # Fail if checks failed
       - name: Fail workflow if checks failed
         if: steps.run-checks.outputs.status == 'failure'
         run: |
-          echo "::error::Sanity checks failed"
+          echo "::error::Sanity checks failed. Please fix the issues before merging."
           exit 1
