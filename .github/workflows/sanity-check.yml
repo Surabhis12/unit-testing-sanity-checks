@@ -3,22 +3,6 @@ name: Sanity Check Workflow
 on:
   pull_request:
     types: [opened, synchronize, reopened]
-    # CONFIGURATION OPTIONS - Choose one:
-    
-    # Option 1: Run on PRs to ALL branches (CURRENT - RECOMMENDED)
-    # (No branches filter needed - leave as is)
-    
-    # Option 2: Run ONLY on PRs targeting 'main' branch
-    # Uncomment the lines below:
-    # branches:
-    #   - main
-    
-    # Option 3: Run on PRs to multiple specific branches
-    # Uncomment and modify the lines below:
-    # branches:
-    #   - main
-    #   - develop
-    #   - release/*
 
 permissions:
   contents: read
@@ -101,27 +85,45 @@ jobs:
       - name: Detect languages and run checks
         if: steps.changed-files.outputs.any_changed == 'true'
         id: run-checks
+        continue-on-error: true
         run: |
           echo "${{ steps.changed-files.outputs.all_changed_files }}" > changed_files.txt
           bash scripts/detect-language.sh
-          bash scripts/run-checks.sh > check_results.txt 2>&1
           
-          if [ $? -eq 0 ]; then
+          # Disable exit-on-error to capture exit code
+          set +e
+          bash scripts/run-checks.sh > check_results.txt 2>&1
+          CHECK_EXIT_CODE=$?
+          set -e
+          
+          # Set status based on exit code
+          if [ $CHECK_EXIT_CODE -eq 0 ]; then
             echo "status=success" >> $GITHUB_OUTPUT
+            echo "✅ All checks passed"
           else
             echo "status=failure" >> $GITHUB_OUTPUT
+            echo "❌ Checks failed with exit code: $CHECK_EXIT_CODE"
           fi
+          
+          # Display results
+          cat check_results.txt
       
       - name: Post results as PR comment
-        if: steps.changed-files.outputs.any_changed == 'true'
+        if: steps.changed-files.outputs.any_changed == 'true' && always()
         uses: actions/github-script@v6
         with:
           github-token: ${{secrets.GITHUB_TOKEN}}
           script: |
             const fs = require('fs');
-            const results = fs.readFileSync('check_results.txt', 'utf8');
-            const status = '${{ steps.run-checks.outputs.status }}';
+            let results = 'No results file found';
             
+            try {
+              results = fs.readFileSync('check_results.txt', 'utf8');
+            } catch (error) {
+              results = 'Error reading results: ' + error.message;
+            }
+            
+            const status = '${{ steps.run-checks.outputs.status }}';
             const statusEmoji = status === 'success' ? '✅' : '❌';
             const statusText = status === 'success' ? 'PASSED' : 'FAILED';
             
@@ -147,7 +149,7 @@ jobs:
             });
       
       - name: Add Sanity Check label
-        if: steps.changed-files.outputs.any_changed == 'true'
+        if: steps.changed-files.outputs.any_changed == 'true' && always()
         uses: actions/github-script@v6
         with:
           github-token: ${{secrets.GITHUB_TOKEN}}
@@ -155,6 +157,20 @@ jobs:
             const status = '${{ steps.run-checks.outputs.status }}';
             const label = status === 'success' ? 'sanity-check-passed' : 'sanity-check-failed';
             
+            // Remove opposite label if exists
+            const oppositeLabel = status === 'success' ? 'sanity-check-failed' : 'sanity-check-passed';
+            try {
+              await github.rest.issues.removeLabel({
+                issue_number: context.issue.number,
+                owner: context.repo.owner,
+                repo: context.repo.repo,
+                name: oppositeLabel
+              });
+            } catch (error) {
+              // Ignore if label doesn't exist
+            }
+            
+            // Add current label
             await github.rest.issues.addLabels({
               issue_number: context.issue.number,
               owner: context.repo.owner,
@@ -164,4 +180,6 @@ jobs:
       
       - name: Fail workflow if checks failed
         if: steps.run-checks.outputs.status == 'failure'
-        run: exit 1
+        run: |
+          echo "::error::Sanity checks failed. Please fix the issues before merging."
+          exit 1
