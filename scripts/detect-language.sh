@@ -1,13 +1,22 @@
 #!/bin/bash
-
-# Detect languages based on file extensions in changed files
+# Detect languages from changed files
 
 echo "=== Language Detection ==="
 echo ""
 
+if [ ! -f changed_files.txt ]; then
+    echo "ERROR: changed_files.txt not found"
+    exit 1
+fi
+
+# Read all changed files
 CHANGED_FILES=$(cat changed_files.txt)
 
-# Initialize language flags
+echo "Changed files:"
+echo "$CHANGED_FILES"
+echo ""
+
+# Initialize
 HAS_CPP=false
 HAS_JS=false
 HAS_RUST=false
@@ -16,64 +25,64 @@ HAS_SWIFT=false
 HAS_JAVA=false
 HAS_FLUTTER=false
 
-# Check for each language
-if echo "$CHANGED_FILES" | grep -qE '\.(c|cpp|h|hpp)$'; then
-    echo "✓ C/C++ files detected"
-    HAS_CPP=true
-    echo "$CHANGED_FILES" | grep -E '\.(c|cpp|h|hpp)$' > cpp_files.txt
-fi
+# Clear old detection files
+rm -f cpp_files.txt js_files.txt rust_files.txt kotlin_files.txt swift_files.txt java_files.txt flutter_files.txt
 
-if echo "$CHANGED_FILES" | grep -qE '\.(js|jsx|ts|tsx)$'; then
-    echo "✓ JavaScript/TypeScript files detected"
-    HAS_JS=true
-    echo "$CHANGED_FILES" | grep -E '\.(js|jsx|ts|tsx)$' > js_files.txt
-fi
+# Process each file
+while IFS= read -r file; do
+    [ -z "$file" ] && continue
+    
+    case "$file" in
+        *.c|*.cpp|*.h|*.hpp)
+            HAS_CPP=true
+            echo "$file" >> cpp_files.txt
+            ;;
+        *.js|*.jsx|*.ts|*.tsx)
+            HAS_JS=true
+            echo "$file" >> js_files.txt
+            ;;
+        *.rs)
+            HAS_RUST=true
+            echo "$file" >> rust_files.txt
+            ;;
+        *.kt)
+            HAS_KOTLIN=true
+            echo "$file" >> kotlin_files.txt
+            ;;
+        *.swift)
+            HAS_SWIFT=true
+            echo "$file" >> swift_files.txt
+            ;;
+        *.java)
+            HAS_JAVA=true
+            echo "$file" >> java_files.txt
+            ;;
+        *.dart)
+            HAS_FLUTTER=true
+            echo "$file" >> flutter_files.txt
+            ;;
+    esac
+done <<< "$CHANGED_FILES"
 
-if echo "$CHANGED_FILES" | grep -qE '\.rs$'; then
-    echo "✓ Rust files detected"
-    HAS_RUST=true
-    echo "$CHANGED_FILES" | grep -E '\.rs$' > rust_files.txt
-fi
+# Show detected languages
+[ "$HAS_CPP" = true ] && echo "✓ C/C++ detected: $(cat cpp_files.txt | wc -l) files"
+[ "$HAS_JS" = true ] && echo "✓ JavaScript detected: $(cat js_files.txt | wc -l) files"
+[ "$HAS_RUST" = true ] && echo "✓ Rust detected: $(cat rust_files.txt | wc -l) files"
+[ "$HAS_KOTLIN" = true ] && echo "✓ Kotlin detected: $(cat kotlin_files.txt | wc -l) files"
+[ "$HAS_SWIFT" = true ] && echo "✓ Swift detected: $(cat swift_files.txt | wc -l) files"
+[ "$HAS_JAVA" = true ] && echo "✓ Java detected: $(cat java_files.txt | wc -l) files"
+[ "$HAS_FLUTTER" = true ] && echo "✓ Dart detected: $(cat flutter_files.txt | wc -l) files"
 
-if echo "$CHANGED_FILES" | grep -qE '\.kt$'; then
-    echo "✓ Kotlin files detected"
-    HAS_KOTLIN=true
-    echo "$CHANGED_FILES" | grep -E '\.kt$' > kotlin_files.txt
-fi
-
-if echo "$CHANGED_FILES" | grep -qE '\.swift$'; then
-    echo "✓ Swift files detected"
-    HAS_SWIFT=true
-    echo "$CHANGED_FILES" | grep -E '\.swift$' > swift_files.txt
-fi
-
-if echo "$CHANGED_FILES" | grep -qE '\.java$'; then
-    echo "✓ Java files detected"
-    HAS_JAVA=true
-    echo "$CHANGED_FILES" | grep -E '\.java$' > java_files.txt
-fi
-
-if echo "$CHANGED_FILES" | grep -qE '\.dart$'; then
-    echo "✓ Flutter/Dart files detected"
-    HAS_FLUTTER=true
-    echo "$CHANGED_FILES" | grep -E '\.dart$' > flutter_files.txt
-fi
-
-# Export flags for use in run-checks.sh
-echo "HAS_CPP=$HAS_CPP" > detected_languages.env
-echo "HAS_JS=$HAS_JS" >> detected_languages.env
-echo "HAS_RUST=$HAS_RUST" >> detected_languages.env
-echo "HAS_KOTLIN=$HAS_KOTLIN" >> detected_languages.env
-echo "HAS_SWIFT=$HAS_SWIFT" >> detected_languages.env
-echo "HAS_JAVA=$HAS_JAVA" >> detected_languages.env
-echo "HAS_FLUTTER=$HAS_FLUTTER" >> detected_languages.env
-
-if [ "$HAS_CPP" = false ] && [ "$HAS_JS" = false ] && [ "$HAS_RUST" = false ] && \
-   [ "$HAS_KOTLIN" = false ] && [ "$HAS_SWIFT" = false ] && [ "$HAS_JAVA" = false ] && \
-   [ "$HAS_FLUTTER" = false ]; then
-    echo ""
-    echo "⚠ No supported language files detected"
-    exit 0
-fi
+# Export results
+cat > detected_languages.env << EOF
+HAS_CPP=$HAS_CPP
+HAS_JS=$HAS_JS
+HAS_RUST=$HAS_RUST
+HAS_KOTLIN=$HAS_KOTLIN
+HAS_SWIFT=$HAS_SWIFT
+HAS_JAVA=$HAS_JAVA
+HAS_FLUTTER=$HAS_FLUTTER
+EOF
 
 echo ""
+echo "✅ Detection complete"

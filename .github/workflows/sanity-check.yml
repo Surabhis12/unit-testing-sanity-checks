@@ -38,76 +38,97 @@ jobs:
             **/*.java
             **/*.dart
       
-      - name: Set up Node.js
+      - name: Detect languages
         if: steps.changed-files.outputs.any_changed == 'true'
+        id: detect
+        run: |
+          # Write changed files
+          echo "${{ steps.changed-files.outputs.all_changed_files }}" > changed_files.txt
+          
+          # Make script executable and run detection
+          chmod +x scripts/detect-language.sh
+          bash scripts/detect-language.sh
+          
+          # Read detection results
+          source detected_languages.env
+          
+          # Export as outputs for conditional steps
+          echo "has_cpp=$HAS_CPP" >> $GITHUB_OUTPUT
+          echo "has_js=$HAS_JS" >> $GITHUB_OUTPUT
+          echo "has_rust=$HAS_RUST" >> $GITHUB_OUTPUT
+          echo "has_kotlin=$HAS_KOTLIN" >> $GITHUB_OUTPUT
+          echo "has_swift=$HAS_SWIFT" >> $GITHUB_OUTPUT
+          echo "has_java=$HAS_JAVA" >> $GITHUB_OUTPUT
+          echo "has_flutter=$HAS_FLUTTER" >> $GITHUB_OUTPUT
+      
+      # Install C/C++ tools ONLY if C/C++ detected
+      - name: Install C/C++ tools
+        if: steps.detect.outputs.has_cpp == 'true'
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y cppcheck
+      
+      # Install Node.js ONLY if JavaScript detected
+      - name: Setup Node.js and ESLint
+        if: steps.detect.outputs.has_js == 'true'
         uses: actions/setup-node@v3
         with:
           node-version: '18'
       
-      - name: Set up Rust
-        if: steps.changed-files.outputs.any_changed == 'true'
+      # Install Rust tools ONLY if Rust detected
+      - name: Setup Rust and Clippy
+        if: steps.detect.outputs.has_rust == 'true'
         uses: actions-rs/toolchain@v1
         with:
           toolchain: stable
           components: clippy
           override: true
       
-      - name: Set up Java
-        if: steps.changed-files.outputs.any_changed == 'true'
+      # Install Java ONLY if Java detected
+      - name: Setup Java
+        if: steps.detect.outputs.has_java == 'true'
         uses: actions/setup-java@v3
         with:
           distribution: 'temurin'
           java-version: '17'
       
-      - name: Install linting tools
-        if: steps.changed-files.outputs.any_changed == 'true'
+      # Install Kotlin tools ONLY if Kotlin detected
+      - name: Install Kotlin linter
+        if: steps.detect.outputs.has_kotlin == 'true'
         run: |
-          # C/C++
-          sudo apt-get update
-          sudo apt-get install -y cppcheck
-          
-          # JavaScript/TypeScript
-          npm install -g eslint
-          
-          # Kotlin
           curl -sSLO https://github.com/pinterest/ktlint/releases/download/0.50.0/ktlint
           chmod a+x ktlint
           sudo mv ktlint /usr/local/bin/
-          
-          # Flutter/Dart
+      
+      # Install Flutter ONLY if Dart detected
+      - name: Setup Flutter
+        if: steps.detect.outputs.has_flutter == 'true'
+        run: |
           git clone https://github.com/flutter/flutter.git -b stable --depth 1
           echo "$GITHUB_WORKSPACE/flutter/bin" >> $GITHUB_PATH
       
-      - name: Make scripts executable
-        if: steps.changed-files.outputs.any_changed == 'true'
-        run: chmod +x scripts/*.sh
-      
-      - name: Detect languages and run checks
+      # Run checks
+      - name: Run sanity checks
         if: steps.changed-files.outputs.any_changed == 'true'
         id: run-checks
         continue-on-error: true
         run: |
-          echo "${{ steps.changed-files.outputs.all_changed_files }}" > changed_files.txt
-          bash scripts/detect-language.sh
+          chmod +x scripts/*.sh
           
-          # Run checks and capture output, allow it to fail
           set +e
           bash scripts/run-checks.sh > check_results.txt 2>&1
           CHECK_EXIT_CODE=$?
           set -e
           
-          # Set status based on exit code
           if [ $CHECK_EXIT_CODE -eq 0 ]; then
             echo "status=success" >> $GITHUB_OUTPUT
-            echo "✅ All checks passed"
           else
             echo "status=failure" >> $GITHUB_OUTPUT
-            echo "❌ Checks failed with exit code: $CHECK_EXIT_CODE"
           fi
           
-          # Always show the results
           cat check_results.txt
       
+      # Post results
       - name: Post results as PR comment
         if: steps.changed-files.outputs.any_changed == 'true' && always()
         uses: actions/github-script@v6
@@ -139,7 +160,7 @@ jobs:
             </details>
             
             ---
-            *Automated sanity checks completed at ${new Date().toISOString()}*`;
+            *Automated sanity checks completed*`;
             
             await github.rest.issues.createComment({
               issue_number: context.issue.number,
@@ -148,6 +169,7 @@ jobs:
               body: body
             });
       
+      # Add label
       - name: Add Sanity Check label
         if: steps.changed-files.outputs.any_changed == 'true' && always()
         uses: actions/github-script@v6
@@ -157,7 +179,6 @@ jobs:
             const status = '${{ steps.run-checks.outputs.status }}';
             const label = status === 'success' ? 'sanity-check-passed' : 'sanity-check-failed';
             
-            // Remove opposite label if it exists
             const oppositeLabel = status === 'success' ? 'sanity-check-failed' : 'sanity-check-passed';
             try {
               await github.rest.issues.removeLabel({
@@ -166,11 +187,8 @@ jobs:
                 repo: context.repo.repo,
                 name: oppositeLabel
               });
-            } catch (error) {
-              // Label might not exist, that's OK
-            }
+            } catch (error) {}
             
-            // Add current label
             await github.rest.issues.addLabels({
               issue_number: context.issue.number,
               owner: context.repo.owner,
@@ -178,8 +196,9 @@ jobs:
               labels: [label]
             });
       
+      # Fail if checks failed
       - name: Fail workflow if checks failed
         if: steps.run-checks.outputs.status == 'failure'
         run: |
-          echo "::error::Sanity checks failed. Please fix the issues before merging."
+          echo "::error::Sanity checks failed"
           exit 1
