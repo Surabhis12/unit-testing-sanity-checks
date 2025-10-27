@@ -88,7 +88,8 @@ jobs:
         run: |
           curl -sSLO https://github.com/pinterest/ktlint/releases/download/0.50.0/ktlint
           chmod a+x ktlint
-          sudo mv ktlint /usr/local/bin/
+          sudo mv ktlint /usr/local/bin/\
+          
       
       - name: Setup Flutter
         if: steps.detect.outputs.has_flutter == 'true'
