@@ -1,364 +1,240 @@
-# Unit Testing - Sanity Check Workflow
+# Sanity Check Workflow
 
-A GitHub Actions workflow that automatically checks your code for common syntax and style issues before merging. Think of it as your first line of defense against obvious bugs and sloppy code.
+An automated GitHub Actions workflow that performs static analysis and syntax validation on Pull Requests across multiple programming languages.
 
-## What This Does
+## Overview
 
-When you create or update a Pull Request, this workflow automatically:
+This repository contains a multi-language sanity check system that automatically validates code quality before merging. The workflow detects programming languages in Pull Request changes, runs language-specific linters and static analyzers, and reports results directly on the PR.
 
-1. **Figures out** what programming languages you're using
-2. **Installs** only the tools needed for those specific languages
-3. **Runs** quick sanity checks on your code
-4. **Comments** on your PR with the results
-5. **Labels** your PR as passed or failed
-6. **Blocks** merging if it finds issues
+## Features
 
-The key thing here: it only runs on Pull Requests, not every time you push code to your branch. This means you can push freely while working, and the checks only kick in when you're ready to merge.
+- **Automatic Language Detection** - Identifies programming languages from file extensions
+- **Conditional Tool Installation** - Only installs tools for detected languages to optimize runtime
+- **Multi-Language Support** - C/C++, JavaScript/TypeScript, Rust, Kotlin, Swift, Java, Dart/Flutter
+- **PR Integration** - Posts detailed results as comments and applies status labels
+- **Merge Protection** - Blocks PRs with failing checks from being merged
 
-## Supported Languages
+## How It Works
 
-Here's what we check and how:
+The workflow triggers on Pull Request events (opened, synchronize, reopened) and follows this process:
 
-### C/C++
-**Tool:** cppcheck with strict settings
+1. **Checkout** - Retrieves the PR code
+2. **File Detection** - Identifies changed files by extension
+3. **Language Detection** - Determines which languages are present
+4. **Tool Installation** - Conditionally installs only required linting tools
+5. **Static Analysis** - Runs language-specific check scripts
+6. **Results Reporting** - Posts formatted comment on the PR
+7. **Status Labeling** - Applies `sanity-check-passed` or `sanity-check-failed` label
+8. **Workflow Status** - Fails the workflow if any checks fail
 
-**What we look for:**
-- Memory leaks (malloc without matching free)
-- Unsafe functions (gets, strcpy)
+## Supported Languages and Checks
+
+### C/C++ (`cppcheck`)
+- Memory leak detection (malloc without free)
+- Unsafe function usage (gets, strcpy)
 - Uninitialized variables
-- Missing include guards in header files
-- Buffer overflow risks
+- Include guard verification
+- Buffer overflow detection
 
-### JavaScript/TypeScript
-**Tool:** Pattern matching (no external linter needed)
-
-**What we catch:**
-- console.log statements (they shouldn't be in production code)
-- Using `var` instead of `let` or `const`
-- Using `==` when you should use `===`
-- eval() usage (major security red flag)
+### JavaScript/TypeScript (Pattern Matching)
+- console.log detection
+- var keyword usage
+- Loose equality (==) usage
+- eval() usage
 - debugger statements
-- alert() calls
+- alert() usage
 
-### Rust
-**Tool:** Simple pattern checks
+### Rust (Pattern Matching)
+- unwrap() in library code
+- println! in library code
 
-**What we flag:**
-- unwrap() in library code (use proper error handling instead)
-- println! in library code (use a proper logging crate)
+### Kotlin (Pattern Matching)
+- Wildcard import detection
+- Line length validation (120 char limit)
+- Multiple statements per line
 
-### Kotlin
-**Tool:** Basic style checks
+### Swift (Pattern Matching)
+- Force unwrapping (!!)
+- Force casting (as!)
 
-**What we enforce:**
-- No wildcard imports (import x.*)
-- Line length under 120 characters
-- One statement per line (no semicolon chains)
+### Java (Pattern Matching)
+- Class naming conventions (PascalCase)
+- System.out.println usage
+- Wildcard imports
 
-### Swift
-**Tool:** Pattern detection
-
-**What we don't allow:**
-- Force unwrapping with !!
-- Force casting with as!
-
-### Java
-**Tool:** Style validation
-
-**What we check:**
-- Class names start with uppercase (PascalCase)
-- No System.out.println (use a logger)
-- No wildcard imports
-
-### Dart/Flutter
-**Tool:** Convention checks
-
-**What we verify:**
-- No print() statements (use debugPrint)
-- Class names are PascalCase
-
-## How It Actually Works
-
-### For You as a Developer
-
-Your typical workflow looks like this:
-
-```bash
-# 1. Work on your feature branch - push as much as you want
-git push origin my-feature
-
-# 2. When you're ready, create a PR
-gh pr create --base main
-
-# 3. The workflow runs automatically
-# Check the PR for a comment with results
-
-# 4. If it fails, fix the issues
-git add .
-git commit -m "Fix sanity check issues"
-git push
-
-# 5. The workflow runs again automatically
-# 6. Merge when everything passes
-```
-
-The important part: **you can push broken code to your branch**. The checks only run when you open or update a Pull Request. This means no annoying failures while you're actively developing.
-
-### Behind the Scenes
-
-When you create a PR, here's what happens:
-
-1. **Language Detection** - The workflow looks at your changed files and figures out what languages you're using
-2. **Tool Installation** - It installs only the tools needed for your specific languages (saves time)
-3. **Run Checks** - Each language gets its own check script run against your files
-4. **Results** - Everything gets collected and posted as a comment on your PR
-5. **Labeling** - Your PR gets labeled with either `sanity-check-passed` or `sanity-check-failed`
-6. **Decision** - If checks failed, the workflow fails and blocks merging
-
-## What This Doesn't Do
-
-This is **not** a replacement for proper testing. We're only checking:
-
-- **Syntax** - Will your code actually run?
-- **Style** - Does it follow basic conventions?
-- **Static Analysis** - Can we spot obvious bugs without running the code?
-
-We're **not** checking:
-- Whether your calculator actually adds correctly
-- If your API calls work
-- Whether your UI looks good
-
-That's what unit tests, integration tests, and code review are for.
+### Dart/Flutter (Pattern Matching)
+- print() statement detection
+- Class naming conventions
 
 ## Repository Structure
 
 ```
-.
-├── .github/
-│   └── workflows/
-│       └── sanity-check.yml        # Main workflow config
-├── scripts/
-│   ├── detect-language.sh          # Figures out what languages you're using
-│   ├── run-checks.sh               # Runs all the checks
-│   ├── cpp-check.sh                # C/C++ specific checks
-│   ├── js-check.sh                 # JavaScript checks
-│   ├── rust-check.sh               # Rust checks
-│   ├── kotlin-check.sh             # Kotlin checks
-│   ├── swift-check.sh              # Swift checks
-│   ├── java-check.sh               # Java checks
-│   └── flutter-check.sh            # Dart/Flutter checks
-├── test-files/                     # Example files for testing
-│   ├── cpp/
-│   ├── javascript/
-│   ├── rust/
-│   ├── kotlin/
-│   ├── swift/
-│   ├── java/
-│   └── dart/
-└── README.md
+.github/workflows/sanity-check.yml    # Main workflow configuration
+scripts/detect-language.sh            # Language detection logic
+scripts/run-checks.sh                 # Check orchestration
+scripts/cpp-check.sh                  # C/C++ analyzer
+scripts/js-check.sh                   # JavaScript analyzer
+scripts/rust-check.sh                 # Rust analyzer
+scripts/kotlin-check.sh               # Kotlin analyzer
+scripts/swift-check.sh                # Swift analyzer
+scripts/java-check.sh                 # Java analyzer
+scripts/flutter-check.sh              # Dart/Flutter analyzer
+test-files/                           # Test cases for each language
+README.md                             # This file
 ```
 
-## Testing the Workflow
+## Usage
 
-Want to make sure it's working? Here's how to test it:
+### For Repository Integration
 
-### Test 1: Good Code (Should Pass)
+1. Copy the `.github/workflows/sanity-check.yml` file to your repository
+2. Copy the `scripts/` directory with all check scripts
+3. Ensure scripts are executable: `chmod +x scripts/*.sh`
+4. Commit and push to enable the workflow
 
-```bash
-git checkout -b test-clean-code
+### For Testing
 
-# Add a simple, clean JavaScript file
-cat > test.js << 'EOF'
-'use strict';
-const add = (a, b) => a + b;
-module.exports = add;
-EOF
+The `test-files/` directory contains example files:
+- `good-example.*` - Code that passes all checks
+- `bad-example.*` - Code with intentional violations
 
-git add test.js
-git commit -m "Add clean JavaScript"
-git push origin test-clean-code
+Create a Pull Request with these files to verify workflow functionality.
 
-# Create a PR - you should see:
-# - Green checkmark
-# - "Sanity Check PASSED" comment
-# - Label: sanity-check-passed
+### Expected Behavior
+
+**Passing Checks:**
+- Green checkmark in PR status
+- Comment: "✅ Sanity Check PASSED"
+- Label: `sanity-check-passed`
+- PR can be merged
+
+**Failing Checks:**
+- Red X in PR status
+- Comment with detailed error list
+- Label: `sanity-check-failed`
+- PR merge blocked
+
+## Configuration
+
+### Workflow File (`.github/workflows/sanity-check.yml`)
+
+Key configuration points:
+
+**Trigger Events:**
+```yaml
+on:
+  pull_request:
+    types: [opened, synchronize, reopened]
 ```
 
-### Test 2: Bad Code (Should Fail)
-
-```bash
-git checkout main
-git checkout -b test-messy-code
-
-# Add some problematic code
-cat > test.js << 'EOF'
-var x = 10;
-console.log(x);
-if (x == 10) {
-    eval("alert('bad')");
-}
-EOF
-
-git add test.js
-git commit -m "Add problematic code"
-git push origin test-messy-code
-
-# Create a PR - you should see:
-# - Red X
-# - Comment listing all the issues
-# - Label: sanity-check-failed
-# - PR blocked from merging
+**File Extensions:**
+```yaml
+files: |
+  **/*.c
+  **/*.cpp
+  **/*.js
+  # ... other extensions
 ```
 
-## Fixing Failed Checks
+**Tool Installation:**
+Each language has a conditional installation step that only runs if that language is detected.
 
-When your PR fails, here's what to do:
+### Check Scripts (`scripts/*.sh`)
 
-1. Read the comment the bot posts - it tells you exactly what's wrong
-2. Fix each issue mentioned
-3. Push your fixes
-4. The workflow runs again automatically
-5. Merge when it passes
+Each check script:
+- Reads a list of files from `[language]_files.txt`
+- Runs language-specific validation
+- Exits with code 0 (pass) or 1 (fail)
+- Outputs human-readable results to stdout
 
-### Common Issues and Fixes
+### Customization
 
-**JavaScript problems:**
-```javascript
-// Problem: Using var
-var x = 10;
+**To modify checks:**
+Edit the relevant script in `scripts/` directory. Each script uses simple pattern matching with `grep` for maximum portability.
 
-// Fix: Use const or let
-const x = 10;
+**To add new languages:**
+1. Add file extensions to workflow YAML
+2. Create new check script: `scripts/[language]-check.sh`
+3. Add detection logic to `detect-language.sh`
+4. Add execution call in `run-checks.sh`
 
-// Problem: Using ==
-if (x == 10) { }
+## Implementation Details
 
-// Fix: Use ===
-if (x === 10) { }
+### Language Detection
 
-// Problem: console.log in code
-console.log("debug info");
+The `detect-language.sh` script:
+- Reads `changed_files.txt` containing space-separated file paths
+- Uses `case` statement for extension matching
+- Creates `[language]_files.txt` for each detected language
+- Exports detection results to `detected_languages.env`
 
-// Fix: Remove it or use proper logging
-logger.info("debug info");
-```
+### Check Execution
 
-**C++ problems:**
-```cpp
-// Problem: Memory leak
-int* ptr = (int*)malloc(100 * sizeof(int));
-// Missing free(ptr)
+The `run-checks.sh` script:
+- Sources `detected_languages.env`
+- Runs checks only for detected languages
+- Aggregates results
+- Exits with combined status code
 
-// Fix: Always free allocated memory
-int* ptr = (int*)malloc(100 * sizeof(int));
-// ... use ptr ...
-free(ptr);
+### Result Reporting
 
-// Or better: Use smart pointers
-std::unique_ptr<int[]> ptr = std::make_unique<int[]>(100);
-```
+The workflow uses GitHub Actions Script to:
+- Read `check_results.txt` containing all check output
+- Parse status from text markers
+- Format as collapsible comment
+- Apply appropriate label
+- Set workflow exit status
 
-**Kotlin problems:**
-```kotlin
-// Problem: Wildcard import
-import kotlin.math.*
+## Technical Requirements
 
-// Fix: Import specific functions
-import kotlin.math.sqrt
-import kotlin.math.pow
-```
+**GitHub Actions Environment:**
+- Ubuntu latest runner
+- Node.js 18 (for JavaScript checks)
+- Rust stable toolchain (for Rust checks)
+- Java 17 (for Java checks)
+- System packages: cppcheck (for C/C++ checks)
 
-## Customizing the Checks
+**Permissions:**
+- `contents: read` - Repository access
+- `pull-requests: write` - Comment and label management
+- `issues: write` - Label management
 
-### Making Checks Less Strict
+## Limitations
 
-If a rule doesn't make sense for your project, you can disable it. Edit the relevant check script:
+- Checks are syntax and style focused, not functional testing
+- Some tools (ktlint, Flutter) require external downloads
+- Swift checks require macOS runner for SwiftLint (currently uses pattern matching)
+- No code coverage or complexity analysis
+- Binary files are not analyzed
 
-```bash
-# Example: Allow console.log in JavaScript
-# In scripts/js-check.sh, comment out:
+## Validation
 
-# if grep -n "console\.log" "$file" > /dev/null; then
-#     FAILED=true
-# fi
-```
+This workflow was developed and tested with:
+- Multiple test PRs covering all supported languages
+- Both passing and failing test cases
+- Real-world code examples
+- GitHub Actions workflow execution logs
 
-### Making Checks More Strict
+## Future Enhancements
 
-Want to catch more issues? Add new patterns to the check scripts:
-
-```bash
-# Example: Flag TODO comments in JavaScript
-# In scripts/js-check.sh, add:
-
-if grep -n "TODO" "$file" > /dev/null; then
-    echo "⚠️  WARNING: $file contains TODO comments"
-    FAILED=true
-fi
-```
-
-### Adding a New Language
-
-To add support for another language:
-
-1. Update `.github/workflows/sanity-check.yml` to detect the file extensions
-2. Create a new check script: `scripts/your-language-check.sh`
-3. Add detection logic to `scripts/detect-language.sh`
-4. Call your script from `scripts/run-checks.sh`
-
-## Why These Specific Checks?
-
-You might wonder why we check for these particular things. Here's the reasoning:
-
-**console.log** - Debug statements slow down production code and can leak sensitive info
-
-**var vs let/const** - `var` has weird scoping rules that cause bugs. Modern JavaScript doesn't need it.
-
-**== vs ===** - `==` does type coercion which leads to unexpected results. Always use `===`.
-
-**eval()** - Major security vulnerability. Never use it.
-
-**Memory leaks** - In C/C++, every malloc needs a free. Otherwise you leak memory.
-
-**Force unwrapping** - In Swift, using !! crashes your app if the value is nil. Use proper optional handling.
-
-The common thread: these are all things that cause bugs or security issues, and they're easy to check automatically.
-
-## Important Notes
-
-- This workflow **only runs on Pull Requests**
-- You can push to your branch as many times as you want without triggering checks
-- All issues must be fixed before you can merge
-- The workflow is smart about tools - it only installs what it needs based on your changed files
-
-## Troubleshooting
-
-### The workflow isn't running
-
-- Make sure your file extensions match what we support (.js, .cpp, .rs, etc.)
-- Check that your scripts are executable: `chmod +x scripts/*.sh`
-- Look at the Actions tab in GitHub for detailed logs
-
-### Getting false positives
-
-If the checks flag something that's actually fine:
-- Look at the specific check script to see what pattern it's matching
-- Consider whether the rule makes sense for your use case
-- You can modify or disable specific checks if needed
-
-### Checks are slow
-
-The first run on a PR might be slower because it needs to install tools. After that, GitHub caches the installations and things speed up. We also only install tools for the languages you're actually using.
+Potential improvements:
+- Integration with additional linters (ESLint, Pylint, etc.)
+- Configurable rule severity levels
+- Support for additional languages (Python, Go, etc.)
+- Custom rule definitions per repository
+- Performance metrics and check duration reporting
 
 ## Contributing
 
-When adding new checks or languages:
-
-1. Test with both good and bad example code
-2. Document what the check does and why
-3. Keep checks simple - we're looking for syntax/style issues, not logic bugs
-4. Update this README with your changes
+To add new checks or languages:
+1. Create check script following existing pattern
+2. Test with good and bad example files
+3. Update `detect-language.sh` for file detection
+4. Update `run-checks.sh` to execute new checks
+5. Update this README with new language support
 
 ---
 
-*This workflow is part of the "Unit Testing - Getting Started" initiative to catch common issues early and keep code quality high across web, firmware, and mobile projects.*
+**Author:** Surabhi  
+**Repository:** https://github.com/Surabhis12/unit-testing-sanity-checks  
+**Created for:** Unit Testing - Getting Started Initiative
