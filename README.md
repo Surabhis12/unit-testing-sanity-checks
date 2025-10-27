@@ -1,5 +1,4 @@
-
-# Sanity Check Workflow
+Automated sanity checks and static analysis for multi-language projects.
 
 An automated GitHub Actions workflow that performs static analysis and syntax validation on Pull Requests across multiple programming languages.
 
@@ -45,14 +44,42 @@ The workflow triggers on Pull Request events (opened, synchronize, reopened) and
 - debugger statements
 - alert() usage
 
-### Rust (Pattern Matching)
-- unwrap() in library code
-- println! in library code
-
-### Kotlin (Pattern Matching)
-- Wildcard import detection
-- Line length validation (120 char limit)
-- Multiple statements per line
+## 📂 Repository Structure
+UNIT-TESTING-SANITY-CHECKS/
+│
+├── .vscode/                     # Local VS Code settings (optional)
+│
+├── scripts/                     # Core automation scripts
+│   ├── cpp-check.sh             # Runs cppcheck for C/C++ code
+│   ├── detect-language.sh       # Detects programming language from PR file list
+│   ├── flutter-check.sh         # Placeholder for Flutter/Dart validation
+│   ├── java-check.sh            # Runs static checks for Java
+│   ├── js-check.sh              # Runs eslint for JavaScript
+│   ├── kotlin-check.sh          # Executes ktlint checks for Kotlin
+│   ├── rust-check.sh            # Runs cargo clippy for Rust
+│   ├── swift-check.sh           # Runs swiftlint for Swift
+│   ├── run-checks.sh            # Central script to invoke language-specific checks
+│   └── test-detection.sh        # Validates detection and routing logic
+│
+├── test-files/                  # Sample test files per supported language
+│   ├── cpp/
+│   │   └── good-example.cpp
+│   ├── dart/
+│   │   └── sample.dart
+│   ├── java/
+│   │   └── good-example.java
+│   ├── javascript/
+│   │   └── good-example.js
+│   ├── kotlin/
+│   │   └── sample.kt
+│   ├── rust/
+│   │   └── good-example.rs
+│   └── swift/
+│       └── good-example.swift
+│
+├── branch_configuration.md      # Notes on branch strategy and workflow testing
+└── README.md                    # Documentation, setup steps, and usage guide
+'''
 
 ### Swift (Pattern Matching)
 - Force unwrapping (!!)
@@ -236,6 +263,14 @@ To add new checks or languages:
 
 ---
 
-**Author:** Surabhi  
-**Repository:** https://github.com/Surabhis12/unit-testing-sanity-checks  
-**Created for:** Unit Testing - Getting Started Initiative
+## 🎓 Evaluation Criteria
+
+Your setup will be validated by:
+1. Creating a PR with test files
+2. Verifying workflow runs automatically
+3. Checking language detection works
+4. Confirming appropriate checks execute
+5. Validating PR comment is posted
+6. Ensuring correct label is applied
+
+**Task Complete When**: A PR with intentionally bad code triggers the workflow, detects the issues, posts a detailed comment, applies the fail label, and blocks the merge.](https://github.com/Surabhis12/unit-testing-sanity-checks.git)
