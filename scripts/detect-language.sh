@@ -9,7 +9,6 @@ if [ ! -f changed_files.txt ]; then
     exit 1
 fi
 
-# Read all changed files (may be space-separated on one line)
 CHANGED_FILES=$(cat changed_files.txt)
 
 echo "Changed files:"
@@ -25,10 +24,10 @@ HAS_SWIFT=false
 HAS_JAVA=false
 HAS_FLUTTER=false
 
-# Clear old detection files
+# Clear old files
 rm -f cpp_files.txt js_files.txt rust_files.txt kotlin_files.txt swift_files.txt java_files.txt flutter_files.txt
 
-# Convert space-separated list to newline-separated and process
+# Process each file
 echo "$CHANGED_FILES" | tr ' ' '\n' | while IFS= read -r file; do
     [ -z "$file" ] && continue
     
@@ -64,7 +63,7 @@ echo "$CHANGED_FILES" | tr ' ' '\n' | while IFS= read -r file; do
     esac
 done
 
-# Read what was actually written to files
+# Check what was written
 [ -f cpp_files.txt ] && HAS_CPP=true
 [ -f js_files.txt ] && HAS_JS=true
 [ -f rust_files.txt ] && HAS_RUST=true
@@ -73,7 +72,7 @@ done
 [ -f java_files.txt ] && HAS_JAVA=true
 [ -f flutter_files.txt ] && HAS_FLUTTER=true
 
-# Show detected languages
+# Show detected
 [ "$HAS_CPP" = true ] && echo "✓ C/C++ detected: $(cat cpp_files.txt 2>/dev/null | wc -l) files"
 [ "$HAS_JS" = true ] && echo "✓ JavaScript detected: $(cat js_files.txt 2>/dev/null | wc -l) files"
 [ "$HAS_RUST" = true ] && echo "✓ Rust detected: $(cat rust_files.txt 2>/dev/null | wc -l) files"
@@ -82,7 +81,7 @@ done
 [ "$HAS_JAVA" = true ] && echo "✓ Java detected: $(cat java_files.txt 2>/dev/null | wc -l) files"
 [ "$HAS_FLUTTER" = true ] && echo "✓ Dart detected: $(cat flutter_files.txt 2>/dev/null | wc -l) files"
 
-# Export results
+# Export
 cat > detected_languages.env << EOF
 HAS_CPP=$HAS_CPP
 HAS_JS=$HAS_JS
@@ -93,8 +92,5 @@ HAS_JAVA=$HAS_JAVA
 HAS_FLUTTER=$HAS_FLUTTER
 EOF
 
-echo ""
-echo "Detection summary:"
-cat detected_languages.env
 echo ""
 echo "✅ Detection complete"
