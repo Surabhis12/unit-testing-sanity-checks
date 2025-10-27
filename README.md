@@ -1,3 +1,4 @@
+
 # Sanity Check Workflow
 
 An automated GitHub Actions workflow that performs static analysis and syntax validation on Pull Requests across multiple programming languages.
