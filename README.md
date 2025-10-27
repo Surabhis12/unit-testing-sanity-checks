@@ -1,4 +1,4 @@
-# Unit Testing - Sanity Check Workflow
+[# Unit Testing - Sanity Check Workflow
 
 Automated sanity checks and static analysis for multi-language projects.
 
@@ -100,33 +100,41 @@ Runs automatically on:
 ---
 
 ## 📂 Repository Structure
-
-```
-.
-├── .github/
-│   └── workflows/
-│       └── sanity-check.yml          # Main workflow file
-├── scripts/
-│   ├── detect-language.sh            # Language detection logic
-│   ├── run-checks.sh                 # Orchestrates all checks
-│   ├── cpp-check.sh                  # C/C++ sanity checks
-│   ├── js-check.sh                   # JavaScript sanity checks
-│   ├── rust-check.sh                 # Rust sanity checks
-│   ├── kotlin-check.sh               # Kotlin sanity checks
-│   ├── swift-check.sh                # Swift sanity checks
-│   ├── java-check.sh                 # Java sanity checks
-│   └── flutter-check.sh              # Flutter sanity checks
-├── test-files/                       # Example test files
+UNIT-TESTING-SANITY-CHECKS/
+│
+├── .vscode/                     # Local VS Code settings (optional)
+│
+├── scripts/                     # Core automation scripts
+│   ├── cpp-check.sh             # Runs cppcheck for C/C++ code
+│   ├── detect-language.sh       # Detects programming language from PR file list
+│   ├── flutter-check.sh         # Placeholder for Flutter/Dart validation
+│   ├── java-check.sh            # Runs static checks for Java
+│   ├── js-check.sh              # Runs eslint for JavaScript
+│   ├── kotlin-check.sh          # Executes ktlint checks for Kotlin
+│   ├── rust-check.sh            # Runs cargo clippy for Rust
+│   ├── swift-check.sh           # Runs swiftlint for Swift
+│   ├── run-checks.sh            # Central script to invoke language-specific checks
+│   └── test-detection.sh        # Validates detection and routing logic
+│
+├── test-files/                  # Sample test files per supported language
 │   ├── cpp/
-│   │   ├── good-example.cpp          # Code that passes
-│   │   └── bad-example.cpp           # Code that fails
-│   └── javascript/
-│       ├── good-example.js           # Code that passes
-│       └── bad-example.js            # Code that fails
-└── README.md                         # This file
-```
-
----
+│   │   └── good-example.cpp
+│   ├── dart/
+│   │   └── sample.dart
+│   ├── java/
+│   │   └── good-example.java
+│   ├── javascript/
+│   │   └── good-example.js
+│   ├── kotlin/
+│   │   └── sample.kt
+│   ├── rust/
+│   │   └── good-example.rs
+│   └── swift/
+│       └── good-example.swift
+│
+├── branch_configuration.md      # Notes on branch strategy and workflow testing
+└── README.md                    # Documentation, setup steps, and usage guide
+'''
 
 ## 🛠️ Setup Instructions
 
@@ -354,4 +362,4 @@ Your setup will be validated by:
 5. Validating PR comment is posted
 6. Ensuring correct label is applied
 
-**Task Complete When**: A PR with intentionally bad code triggers the workflow, detects the issues, posts a detailed comment, applies the fail label, and blocks the merge.
+**Task Complete When**: A PR with intentionally bad code triggers the workflow, detects the issues, posts a detailed comment, applies the fail label, and blocks the merge.](https://github.com/Surabhis12/unit-testing-sanity-checks.git)
