@@ -1,5 +1,3 @@
-[# Unit Testing - Sanity Check Workflow
-
 Automated sanity checks and static analysis for multi-language projects.
 
 ## 🎯 Purpose
