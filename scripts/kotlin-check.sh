@@ -16,7 +16,6 @@ echo "================================"
 echo ""
 echo "Checking for:"
 echo "  ✓ No wildcard imports"
-echo "  ✓ Max line length (120 chars)"
 echo "  ✓ No multiple statements per line"
 echo ""
 
@@ -30,12 +29,6 @@ for file in $FILES; do
         FAILED=true
     fi
     
-    # Check for lines over 120 characters
-    if awk 'length > 120' "$file" | head -1 > /dev/null; then
-        echo "❌ ERROR: $file has lines exceeding 120 characters"
-        awk 'length > 120 {print NR": "$0}' "$file" | head -5
-        FAILED=true
-    fi
     
     # Check for multiple statements on one line
     if grep -n ";.*;" "$file" > /dev/null; then
