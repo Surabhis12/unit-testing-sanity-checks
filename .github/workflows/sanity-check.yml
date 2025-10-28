@@ -62,13 +62,13 @@ jobs:
           sudo apt-get update
           sudo apt-get install -y cppcheck
       
-      - name: Setup Node.js and ESLint
+      - name: Setup Node.js
         if: steps.detect.outputs.has_js == 'true'
         uses: actions/setup-node@v3
         with:
           node-version: '18'
       
-      - name: Setup Rust and Clippy
+      - name: Setup Rust
         if: steps.detect.outputs.has_rust == 'true'
         uses: actions-rs/toolchain@v1
         with:
@@ -100,39 +100,23 @@ jobs:
         if: steps.changed-files.outputs.any_changed == 'true'
         id: run-checks
         run: |
-                chmod +x scripts/*.sh
-                
-                echo "=== Running Checks ==="
-                bash scripts/run-checks.sh > check_results.txt 2>&1 || true
-                
-                echo ""
-                echo "=== Checking Results ==="
-                cat check_results.txt
-                
-                echo ""
-                echo "=== Looking for PASSED marker ==="
-                grep "ALL SANITY CHECKS PASSED" check_results.txt || echo "NOT FOUND"
-                
-                echo ""
-                echo "=== Looking for FAILED marker ==="
-                grep "SANITY CHECKS FAILED" check_results.txt || echo "NOT FOUND"
-                
-                echo ""
-                echo "=== Setting Status ==="
-                if grep -q "ALL SANITY CHECKS PASSED" check_results.txt; then
-                  echo "status=success" >> $GITHUB_OUTPUT
-                  echo "✅ STATUS SET TO: success"
-                elif grep -q "SANITY CHECKS FAILED" check_results.txt; then
-                  echo "status=failure" >> $GITHUB_OUTPUT
-                  echo "❌ STATUS SET TO: failure"
-                else
-                  echo "status=unknown" >> $GITHUB_OUTPUT
-                  echo "⚠️ STATUS SET TO: unknown (no marker found)"
-                fi
-                
-                echo ""
-                echo "=== Output Status Value ==="
-                echo "Status variable: ${{ steps.run-checks.outputs.status }}"
+          chmod +x scripts/*.sh
+          
+          # Run checks and save output
+          bash scripts/run-checks.sh > check_results.txt 2>&1 || true
+          
+          # Display results
+          echo "=== Check Results ==="
+          cat check_results.txt
+          
+          # Determine status by checking the output
+          if grep -q "ALL SANITY CHECKS PASSED" check_results.txt; then
+            echo "status=success" >> $GITHUB_OUTPUT
+            echo "✅ Checks PASSED"
+          else
+            echo "status=failure" >> $GITHUB_OUTPUT
+            echo "❌ Checks FAILED"
+          fi
       
       - name: Post results as PR comment
         if: steps.changed-files.outputs.any_changed == 'true' && always()
@@ -191,9 +175,7 @@ jobs:
                 repo: context.repo.repo,
                 name: oppositeLabel
               });
-            } catch (error) {
-              // Ignore if label doesn't exist
-            }
+            } catch (error) {}
             
             await github.rest.issues.addLabels({
               issue_number: context.issue.number,
