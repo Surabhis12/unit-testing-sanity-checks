@@ -1,6 +1,5 @@
 #!/bin/bash
 # C/C++ Sanity Check with Strict Rules
-# This enforces coding standards and catches common issues
 
 set -e
 
@@ -51,7 +50,7 @@ echo ""
 echo "Checking for anti-patterns..."
 
 for file in $FILES; do
-    # Check for malloc without free (potential memory leak)
+    # Check for malloc without free
     if grep -n "malloc\|calloc\|realloc" "$file" > /dev/null; then
         if ! grep -n "free" "$file" > /dev/null; then
             echo "⚠️  WARNING: $file uses malloc but no free() found"
@@ -67,7 +66,7 @@ for file in $FILES; do
     
     # Check for strcpy without bounds checking
     if grep -n "strcpy(" "$file" > /dev/null; then
-        echo "⚠️  WARNING: $file uses strcpy - consider strncpy for safety"
+        echo "⚠️  WARNING: $file uses strcpy - consider strncpy"
         FAILED=true
     fi
     

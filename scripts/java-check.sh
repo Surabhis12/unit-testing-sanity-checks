@@ -23,16 +23,16 @@ echo ""
 FAILED=false
 
 for file in $FILES; do
-    # Check for class naming (should be PascalCase, not lowercase)
+    # Check for class naming
     if grep -n "^class [a-z]" "$file" > /dev/null; then
-        echo "❌ ERROR: $file has class with lowercase name (should be PascalCase)"
+        echo "❌ ERROR: $file has class with lowercase name"
         grep -n "^class [a-z]" "$file"
         FAILED=true
     fi
     
     # Check for System.out.println
     if grep -n "System\.out\.println" "$file" > /dev/null; then
-        echo "⚠️  WARNING: $file uses System.out.println - consider using a logger"
+        echo "⚠️  WARNING: $file uses System.out.println"
         FAILED=true
     fi
     
