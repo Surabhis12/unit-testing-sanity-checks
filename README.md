@@ -1,5 +1,7 @@
 Automated sanity checks and static analysis for multi-language projects.
 
+An automated GitHub Actions workflow that performs static analysis and syntax validation on Pull Requests across multiple programming languages.
+
 ## Overview
 
 This repository contains a multi-language sanity check system that automatically validates code quality before merging. The workflow detects programming languages in Pull Request changes, runs language-specific linters and static analyzers, and reports results directly on the PR.
@@ -92,14 +94,42 @@ UNIT-TESTING-SANITY-CHECKS/
 - debugger statements
 - alert() usage
 
-### Rust (Pattern Matching)
-- unwrap() in library code
-- println! in library code
-
-### Kotlin (Pattern Matching)
-- Wildcard import detection
-- Line length validation (120 char limit)
-- Multiple statements per line
+## 📂 Repository Structure
+UNIT-TESTING-SANITY-CHECKS/
+│
+├── .vscode/                     # Local VS Code settings (optional)
+│
+├── scripts/                     # Core automation scripts
+│   ├── cpp-check.sh             # Runs cppcheck for C/C++ code
+│   ├── detect-language.sh       # Detects programming language from PR file list
+│   ├── flutter-check.sh         # Placeholder for Flutter/Dart validation
+│   ├── java-check.sh            # Runs static checks for Java
+│   ├── js-check.sh              # Runs eslint for JavaScript
+│   ├── kotlin-check.sh          # Executes ktlint checks for Kotlin
+│   ├── rust-check.sh            # Runs cargo clippy for Rust
+│   ├── swift-check.sh           # Runs swiftlint for Swift
+│   ├── run-checks.sh            # Central script to invoke language-specific checks
+│   └── test-detection.sh        # Validates detection and routing logic
+│
+├── test-files/                  # Sample test files per supported language
+│   ├── cpp/
+│   │   └── good-example.cpp
+│   ├── dart/
+│   │   └── sample.dart
+│   ├── java/
+│   │   └── good-example.java
+│   ├── javascript/
+│   │   └── good-example.js
+│   ├── kotlin/
+│   │   └── sample.kt
+│   ├── rust/
+│   │   └── good-example.rs
+│   └── swift/
+│       └── good-example.swift
+│
+├── branch_configuration.md      # Notes on branch strategy and workflow testing
+└── README.md                    # Documentation, setup steps, and usage guide
+'''
 
 ### Swift (Pattern Matching)
 - Force unwrapping (!!)
