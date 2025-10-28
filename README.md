@@ -27,14 +27,64 @@ The workflow triggers on Pull Request events (opened, synchronize, reopened) and
 7. **Status Labeling** - Applies `sanity-check-passed` or `sanity-check-failed` label
 8. **Workflow Status** - Fails the workflow if any checks fail
 
-## Supported Languages and Checks
+---
 
-### C/C++ (`cppcheck`)
-- Memory leak detection (malloc without free)
-- Unsafe function usage (gets, strcpy)
-- Uninitialized variables
-- Include guard verification
-- Buffer overflow detection
+## 🚀 How It Works
+
+### Workflow Trigger
+Runs automatically on:
+- New Pull Request
+- PR updated with new commits
+- PR reopened
+
+### Execution Steps
+1. **Checkout**: Fetches your PR code
+2. **Detect Changes**: Identifies modified files
+3. **Language Detection**: Determines which languages are present
+4. **Install Tools**: Sets up required linters/analyzers
+5. **Run Checks**: Executes language-specific sanity scripts
+6. **Report Results**: Posts comment on PR with pass/fail status
+7. **Apply Label**: Adds `sanity-check-passed` or `sanity-check-failed`
+8. **Block Merge**: Fails the workflow if issues found
+
+---
+
+## 📂 Repository Structure
+UNIT-TESTING-SANITY-CHECKS/
+│
+├── .vscode/                     # Local VS Code settings (optional)
+│
+├── scripts/                     # Core automation scripts
+│   ├── cpp-check.sh             # Runs cppcheck for C/C++ code
+│   ├── detect-language.sh       # Detects programming language from PR file list
+│   ├── flutter-check.sh         # Placeholder for Flutter/Dart validation
+│   ├── java-check.sh            # Runs static checks for Java
+│   ├── js-check.sh              # Runs eslint for JavaScript
+│   ├── kotlin-check.sh          # Executes ktlint checks for Kotlin
+│   ├── rust-check.sh            # Runs cargo clippy for Rust
+│   ├── swift-check.sh           # Runs swiftlint for Swift
+│   ├── run-checks.sh            # Central script to invoke language-specific checks
+│   └── test-detection.sh        # Validates detection and routing logic
+│
+├── test-files/                  # Sample test files per supported language
+│   ├── cpp/
+│   │   └── good-example.cpp
+│   ├── dart/
+│   │   └── sample.dart
+│   ├── java/
+│   │   └── good-example.java
+│   ├── javascript/
+│   │   └── good-example.js
+│   ├── kotlin/
+│   │   └── sample.kt
+│   ├── rust/
+│   │   └── good-example.rs
+│   └── swift/
+│       └── good-example.swift
+│
+├── branch_configuration.md      # Notes on branch strategy and workflow testing
+└── README.md                    # Documentation, setup steps, and usage guide
+'''
 
 ### JavaScript/TypeScript (Pattern Matching)
 - console.log detection
