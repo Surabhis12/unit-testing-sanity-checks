@@ -24,14 +24,14 @@ FAILED=false
 for file in $FILES; do
     # Check for print() statements
     if grep -n "print(" "$file" > /dev/null; then
-        echo "⚠️  WARNING: $file uses print() - consider using debugPrint()"
+        echo "⚠️  WARNING: $file uses print()"
         grep -n "print(" "$file"
         FAILED=true
     fi
     
     # Check for class naming
     if grep -n "^class [a-z]" "$file" > /dev/null; then
-        echo "❌ ERROR: $file has class with lowercase name (should be PascalCase)"
+        echo "❌ ERROR: $file has class with lowercase name"
         grep -n "^class [a-z]" "$file"
         FAILED=true
     fi
