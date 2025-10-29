@@ -10,6 +10,8 @@ const Calculator = {
         this.result = a + b;
         return this.result;
     },
+
+    
     
     divide: function(a, b) {
         if (b === 0) {
