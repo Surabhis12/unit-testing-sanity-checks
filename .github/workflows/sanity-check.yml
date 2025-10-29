@@ -1,7 +1,7 @@
 name: Sanity Check Workflow
 
 on:
-  pull_request:
+  pull_request_target:
     types: [opened, synchronize, reopened]
 
 permissions:
@@ -120,6 +120,7 @@ jobs:
       
       - name: Post results as PR comment
         if: steps.changed-files.outputs.any_changed == 'true' && always()
+        continue-on-error: true
         uses: actions/github-script@v6
         with:
           github-token: ${{secrets.GITHUB_TOKEN}}
@@ -151,15 +152,22 @@ jobs:
             ---
             *Automated sanity checks completed at ${new Date().toISOString()}*`;
             
-            await github.rest.issues.createComment({
-              issue_number: context.issue.number,
-              owner: context.repo.owner,
-              repo: context.repo.repo,
-              body: body
-            });
+            try {
+              await github.rest.issues.createComment({
+                issue_number: context.issue.number,
+                owner: context.repo.owner,
+                repo: context.repo.repo,
+                body: body
+              });
+              console.log('✅ Comment posted successfully');
+            } catch (error) {
+              console.log('⚠️ Could not post comment (likely a fork PR)');
+              console.log('Check results are still available in workflow logs');
+            }
       
       - name: Add Sanity Check label
         if: steps.changed-files.outputs.any_changed == 'true' && always()
+        continue-on-error: true
         uses: actions/github-script@v6
         with:
           github-token: ${{secrets.GITHUB_TOKEN}}
@@ -167,13 +175,22 @@ jobs:
             const status = '${{ steps.run-checks.outputs.status }}';
             const label = status === 'success' ? 'sanity-check-passed' : 'sanity-check-failed';
             
-            const oppositeLabel = status === 'success' ? 'sanity-check-failed' : 'sanity-check-passed';
             try {
-              await github.rest.issues.removeLabel({
+              const oppositeLabel = status === 'success' ? 'sanity-check-failed' : 'sanity-check-passed';
+              try {
+                await github.rest.issues.removeLabel({
+                  issue_number: context.issue.number,
+                  owner: context.repo.owner,
+                  repo: context.repo.repo,
+                  name: oppositeLabel
+                });
+              } catch (error) {}
+              
+              await github.rest.issues.addLabels({
                 issue_number: context.issue.number,
                 owner: context.repo.owner,
                 repo: context.repo.repo,
-                name: oppositeLabel
+                labels: [label]
               });
             } catch (error) {}
             
