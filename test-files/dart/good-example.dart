@@ -7,6 +7,7 @@ class Calculator {
     _result = a + b;
     return _result;
   }
+  
 
   double divide(double a, double b) {
     if (b == 0.0) {
