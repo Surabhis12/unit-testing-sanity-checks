@@ -13,8 +13,10 @@ class Calculator {
             throw NSError(domain: "Calculator", code: 1)
         }
         result = a / b
-        return result
+        return
+         result
     }
+    
 }
 
 let calculator = Calculator()

@@ -8,6 +8,7 @@ class Calculator {
     return _result;
   }
 
+
   double divide(double a, double b) {
     if (b == 0.0) {
       throw ArgumentError('Division by zero');

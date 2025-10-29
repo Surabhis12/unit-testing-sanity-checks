@@ -14,7 +14,6 @@ class Calculator {
     }
     
 
-
     fun multiply(a: Double, b: Double): Double {
         result = a * b
         return result

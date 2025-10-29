@@ -6,8 +6,6 @@
 class Calculator {
 private:
     double result;
-
-
 public:
     Calculator() : result(0.0) {}
 
