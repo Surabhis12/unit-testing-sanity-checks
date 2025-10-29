@@ -17,6 +17,8 @@ public:
         return result;
     }
 
+    
+
 
     double divide(double a, double b) {
         if (b == 0.0) {
@@ -25,6 +27,7 @@ public:
         result = a / b;
         return result;
     }
+
 
 
     double getResult() const {
