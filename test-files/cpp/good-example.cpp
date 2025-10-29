@@ -14,6 +14,7 @@ public:
         result = a + b;
         return result;
     }
+    
 
 
     double divide(double a, double b) {
