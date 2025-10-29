@@ -102,11 +102,14 @@ jobs:
         run: |
           chmod +x scripts/*.sh
           
+          # Run checks and save output
           bash scripts/run-checks.sh > check_results.txt 2>&1 || true
           
+          # Display results
           echo "=== Check Results ==="
           cat check_results.txt
           
+          # Determine status by checking the output
           if grep -q "ALL SANITY CHECKS PASSED" check_results.txt; then
             echo "status=success" >> $GITHUB_OUTPUT
             echo "✅ Checks PASSED"
@@ -189,10 +192,14 @@ jobs:
                 repo: context.repo.repo,
                 labels: [label]
               });
-              console.log('✅ Label added successfully');
-            } catch (error) {
-              console.log('⚠️ Could not add label (likely a fork PR)');
-            }
+            } catch (error) {}
+            
+            await github.rest.issues.addLabels({
+              issue_number: context.issue.number,
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              labels: [label]
+            });
       
       - name: Fail workflow if checks failed
         if: steps.run-checks.outputs.status == 'failure'
