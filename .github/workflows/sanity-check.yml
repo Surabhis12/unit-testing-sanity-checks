@@ -41,20 +41,32 @@ jobs:
       - name: Check if PR is from fork
         id: check-fork
         run: |
-          echo "Source repo: ${{ github.event.pull_request.head.repo.full_name }}"
-          echo "Target repo: ${{ github.repository }}"
+          echo "=== Fork Detection Debug Info ==="
+          echo "Event name: ${{ github.event_name }}"
+          echo "Repository: ${{ github.repository }}"
+          echo "Head repo: ${{ github.event.pull_request.head.repo.full_name }}"
+          echo "Head ref: ${{ github.event.pull_request.head.ref }}"
+          echo "Base ref: ${{ github.event.pull_request.base.ref }}"
+          echo "Actor: ${{ github.actor }}"
+          echo "Repository owner: ${{ github.repository_owner }}"
           
-          if [ "${{ github.event.pull_request.head.repo.full_name }}" != "${{ github.repository }}" ]; then
+          # Check if head.repo is null (indicates fork with restricted access)
+          if [ -z "${{ github.event.pull_request.head.repo.full_name }}" ] || [ "${{ github.event.pull_request.head.repo.full_name }}" == "" ]; then
             echo "is_fork=true" >> $GITHUB_OUTPUT
-            echo "⚠️ This PR is from a fork (different repository)"
+            echo "⚠️ Fork detected (head.repo is null or empty)"
+            echo "This indicates a fork with restricted permissions"
+          elif [ "${{ github.event.pull_request.head.repo.full_name }}" != "${{ github.repository }}" ]; then
+            echo "is_fork=true" >> $GITHUB_OUTPUT
+            echo "⚠️ Fork detected (different repository)"
             echo "   Source: ${{ github.event.pull_request.head.repo.full_name }}"
             echo "   Target: ${{ github.repository }}"
-            echo "   Comments and labels will be skipped due to GitHub security restrictions"
           else
             echo "is_fork=false" >> $GITHUB_OUTPUT
-            echo "✅ This PR is from the same repository"
-            echo "   Full functionality available (comments + labels)"
+            echo "✅ Same repository PR"
           fi
+          
+          echo "=== Fork Detection Result ==="
+          cat $GITHUB_OUTPUT | grep is_fork || echo "ERROR: is_fork not set!"
       
       - name: Detect languages
         if: steps.changed-files.outputs.any_changed == 'true'
@@ -174,6 +186,7 @@ jobs:
       
       - name: Post results as PR comment (only for same-repo PRs)
         if: steps.changed-files.outputs.any_changed == 'true' && steps.check-fork.outputs.is_fork == 'false' && always()
+        continue-on-error: true
         uses: actions/github-script@v6
         with:
           github-token: ${{secrets.GITHUB_TOKEN}}
@@ -205,49 +218,56 @@ jobs:
             ---
             *Automated sanity checks completed at ${new Date().toISOString()}*`;
             
-            await github.rest.issues.createComment({
-              issue_number: context.issue.number,
-              owner: context.repo.owner,
-              repo: context.repo.repo,
-              body: body
-            });
-            
-            console.log('✅ PR comment posted successfully');
+            try {
+              await github.rest.issues.createComment({
+                issue_number: context.issue.number,
+                owner: context.repo.owner,
+                repo: context.repo.repo,
+                body: body
+              });
+              console.log('✅ PR comment posted successfully');
+            } catch (error) {
+              console.log('⚠️ Failed to post comment:', error.message);
+              // Don't throw - this is expected for forks
+            }
       
       - name: Add Sanity Check label (only for same-repo PRs)
         if: steps.changed-files.outputs.any_changed == 'true' && steps.check-fork.outputs.is_fork == 'false' && always()
+        continue-on-error: true
         uses: actions/github-script@v6
         with:
           github-token: ${{secrets.GITHUB_TOKEN}}
           script: |
             const status = '${{ steps.run-checks.outputs.status }}';
             const label = status === 'success' ? 'sanity-check-passed' : 'sanity-check-failed';
-            
             const oppositeLabel = status === 'success' ? 'sanity-check-failed' : 'sanity-check-passed';
             
-            // Remove opposite label if it exists
             try {
-              await github.rest.issues.removeLabel({
+              // Remove opposite label if it exists
+              try {
+                await github.rest.issues.removeLabel({
+                  issue_number: context.issue.number,
+                  owner: context.repo.owner,
+                  repo: context.repo.repo,
+                  name: oppositeLabel
+                });
+                console.log(`Removed opposite label: ${oppositeLabel}`);
+              } catch (error) {
+                console.log(`Opposite label ${oppositeLabel} not found (OK)`);
+              }
+              
+              // Add the correct label
+              await github.rest.issues.addLabels({
                 issue_number: context.issue.number,
                 owner: context.repo.owner,
                 repo: context.repo.repo,
-                name: oppositeLabel
+                labels: [label]
               });
-              console.log(`Removed opposite label: ${oppositeLabel}`);
+              console.log(`✅ Label added: ${label}`);
             } catch (error) {
-              // Label doesn't exist, that's fine
-              console.log(`Opposite label ${oppositeLabel} not found (OK)`);
+              console.log('⚠️ Failed to add label:', error.message);
+              // Don't throw - this is expected for forks
             }
-            
-            // Add the correct label
-            await github.rest.issues.addLabels({
-              issue_number: context.issue.number,
-              owner: context.repo.owner,
-              repo: context.repo.repo,
-              labels: [label]
-            });
-            
-            console.log(`✅ Label added: ${label}`);
       
       - name: Notice for fork PRs
         if: steps.changed-files.outputs.any_changed == 'true' && steps.check-fork.outputs.is_fork == 'true' && always()
@@ -257,9 +277,7 @@ jobs:
           echo "   FORK PR DETECTED"
           echo "========================================="
           echo ""
-          echo "This PR is from a forked repository:"
-          echo "  Source: ${{ github.event.pull_request.head.repo.full_name }}"
-          echo "  Target: ${{ github.repository }}"
+          echo "This PR is from a forked repository."
           echo ""
           echo "Due to GitHub security restrictions:"
           echo "  ❌ PR comments cannot be posted"
