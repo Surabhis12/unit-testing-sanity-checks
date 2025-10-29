@@ -25,6 +25,7 @@ public:
         result = a / b;
         return result;
     }
+    
 
 
     double getResult() const {
