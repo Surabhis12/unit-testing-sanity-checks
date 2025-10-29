@@ -38,73 +38,85 @@ jobs:
             **/*.java
             **/*.dart
       
-      - name: Set up Node.js
+      - name: Detect languages
         if: steps.changed-files.outputs.any_changed == 'true'
+        id: detect
+        run: |
+          echo "${{ steps.changed-files.outputs.all_changed_files }}" > changed_files.txt
+          chmod +x scripts/detect-language.sh
+          bash scripts/detect-language.sh
+          
+          source detected_languages.env
+          
+          echo "has_cpp=$HAS_CPP" >> $GITHUB_OUTPUT
+          echo "has_js=$HAS_JS" >> $GITHUB_OUTPUT
+          echo "has_rust=$HAS_RUST" >> $GITHUB_OUTPUT
+          echo "has_kotlin=$HAS_KOTLIN" >> $GITHUB_OUTPUT
+          echo "has_swift=$HAS_SWIFT" >> $GITHUB_OUTPUT
+          echo "has_java=$HAS_JAVA" >> $GITHUB_OUTPUT
+          echo "has_flutter=$HAS_FLUTTER" >> $GITHUB_OUTPUT
+      
+      - name: Install C/C++ tools
+        if: steps.detect.outputs.has_cpp == 'true'
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y cppcheck
+      
+      - name: Setup Node.js
+        if: steps.detect.outputs.has_js == 'true'
         uses: actions/setup-node@v3
         with:
           node-version: '18'
       
-      - name: Set up Rust
-        if: steps.changed-files.outputs.any_changed == 'true'
+      - name: Setup Rust
+        if: steps.detect.outputs.has_rust == 'true'
         uses: actions-rs/toolchain@v1
         with:
           toolchain: stable
           components: clippy
           override: true
       
-      - name: Set up Java
-        if: steps.changed-files.outputs.any_changed == 'true'
+      - name: Setup Java
+        if: steps.detect.outputs.has_java == 'true'
         uses: actions/setup-java@v3
         with:
           distribution: 'temurin'
           java-version: '17'
       
-      - name: Install linting tools
-        if: steps.changed-files.outputs.any_changed == 'true'
+      - name: Install Kotlin linter
+        if: steps.detect.outputs.has_kotlin == 'true'
         run: |
-          sudo apt-get update
-          sudo apt-get install -y cppcheck
-          
-          npm install -g eslint
-          
           curl -sSLO https://github.com/pinterest/ktlint/releases/download/0.50.0/ktlint
           chmod a+x ktlint
           sudo mv ktlint /usr/local/bin/
-          
+      
+      - name: Setup Flutter
+        if: steps.detect.outputs.has_flutter == 'true'
+        run: |
           git clone https://github.com/flutter/flutter.git -b stable --depth 1
           echo "$GITHUB_WORKSPACE/flutter/bin" >> $GITHUB_PATH
       
-      - name: Make scripts executable
-        if: steps.changed-files.outputs.any_changed == 'true'
-        run: chmod +x scripts/*.sh
-      
-      - name: Detect languages and run checks
+      - name: Run sanity checks
         if: steps.changed-files.outputs.any_changed == 'true'
         id: run-checks
-        continue-on-error: true
         run: |
-          echo "🕵️ Running sanity checks on changed files..."
-          echo "${{ steps.changed-files.outputs.all_changed_files }}" > changed_files.txt
-          bash scripts/detect-language.sh
-
-          # Disable exit-on-error to capture script exit code
-          set +e
-          bash scripts/run-checks.sh > check_results.txt 2>&1
-          CHECK_EXIT_CODE=$?
-          set -e
-
-          # Mark workflow result
-          if [ $CHECK_EXIT_CODE -eq 0 ]; then
-            echo "✅ All sanity checks PASSED!"
-            echo "status=success" >> $GITHUB_OUTPUT
-          else
-            echo "❌ Sanity checks FAILED! (Exit code: $CHECK_EXIT_CODE)"
-            echo "status=failure" >> $GITHUB_OUTPUT
-          fi
-
-          echo "--- RESULTS ---"
+          chmod +x scripts/*.sh
+          
+          # Run checks and save output
+          bash scripts/run-checks.sh > check_results.txt 2>&1 || true
+          
+          # Display results
+          echo "=== Check Results ==="
           cat check_results.txt
-          echo "---------------"
+          
+          # Determine status by checking the output
+          if grep -q "ALL SANITY CHECKS PASSED" check_results.txt; then
+            echo "status=success" >> $GITHUB_OUTPUT
+            echo "✅ Checks PASSED"
+          else
+            echo "status=failure" >> $GITHUB_OUTPUT
+            echo "❌ Checks FAILED"
+          fi
       
       - name: Post results as PR comment
         if: steps.changed-files.outputs.any_changed == 'true' && always()
@@ -154,34 +166,23 @@ jobs:
           script: |
             const status = '${{ steps.run-checks.outputs.status }}';
             const label = status === 'success' ? 'sanity-check-passed' : 'sanity-check-failed';
-            const opposite = status === 'success' ? 'sanity-check-failed' : 'sanity-check-passed';
-
+            
+            const oppositeLabel = status === 'success' ? 'sanity-check-failed' : 'sanity-check-passed';
             try {
               await github.rest.issues.removeLabel({
                 issue_number: context.issue.number,
                 owner: context.repo.owner,
                 repo: context.repo.repo,
-                name: opposite
+                name: oppositeLabel
               });
-            } catch (error) {
-              // Label might not exist; ignore.
-            }
-
+            } catch (error) {}
+            
             await github.rest.issues.addLabels({
               issue_number: context.issue.number,
               owner: context.repo.owner,
               repo: context.repo.repo,
               labels: [label]
             });
-      
-      - name: Write summary
-        if: always()
-        run: |
-          if [ "${{ steps.run-checks.outputs.status }}" = "success" ]; then
-            echo "### ✅ Sanity Check Passed" >> $GITHUB_STEP_SUMMARY
-          else
-            echo "### ❌ Sanity Check Failed" >> $GITHUB_STEP_SUMMARY
-          fi
       
       - name: Fail workflow if checks failed
         if: steps.run-checks.outputs.status == 'failure'
