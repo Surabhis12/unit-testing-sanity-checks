@@ -17,7 +17,6 @@ class Calculator {
     return _result;
   }
 }
-
 void main() {
   final calculator = Calculator();
   debugPrint('Result: ${calculator.add(5, 3)}');
