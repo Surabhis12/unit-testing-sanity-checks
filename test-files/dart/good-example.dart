@@ -12,6 +12,7 @@ class Calculator {
     if (b == 0.0) {
       throw ArgumentError('Division by zero');
     }
+    
     _result = a / b;
     return _result;
   }
