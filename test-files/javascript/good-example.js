@@ -11,6 +11,7 @@ const Calculator = {
         return this.result;
     },
     
+    
     divide: function(a, b) {
         if (b === 0) {
             throw new Error('Division by zero');

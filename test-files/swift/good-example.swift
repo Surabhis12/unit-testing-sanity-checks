@@ -8,6 +8,7 @@ class Calculator {
         return result
     }
     
+    
     func divide(_ a: Double, _ b: Double) throws -> Double {
         guard b != 0 else {
             throw NSError(domain: "Calculator", code: 1)
