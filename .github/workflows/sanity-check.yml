@@ -102,14 +102,11 @@ jobs:
         run: |
           chmod +x scripts/*.sh
           
-          # Run checks and save output
           bash scripts/run-checks.sh > check_results.txt 2>&1 || true
           
-          # Display results
           echo "=== Check Results ==="
           cat check_results.txt
           
-          # Determine status by checking the output
           if grep -q "ALL SANITY CHECKS PASSED" check_results.txt; then
             echo "status=success" >> $GITHUB_OUTPUT
             echo "✅ Checks PASSED"
@@ -120,6 +117,7 @@ jobs:
       
       - name: Post results as PR comment
         if: steps.changed-files.outputs.any_changed == 'true' && always()
+        continue-on-error: true
         uses: actions/github-script@v6
         with:
           github-token: ${{secrets.GITHUB_TOKEN}}
@@ -151,15 +149,22 @@ jobs:
             ---
             *Automated sanity checks completed at ${new Date().toISOString()}*`;
             
-            await github.rest.issues.createComment({
-              issue_number: context.issue.number,
-              owner: context.repo.owner,
-              repo: context.repo.repo,
-              body: body
-            });
+            try {
+              await github.rest.issues.createComment({
+                issue_number: context.issue.number,
+                owner: context.repo.owner,
+                repo: context.repo.repo,
+                body: body
+              });
+              console.log('✅ Comment posted successfully');
+            } catch (error) {
+              console.log('⚠️ Could not post comment (likely a fork PR)');
+              console.log('Check results are still available in workflow logs');
+            }
       
       - name: Add Sanity Check label
         if: steps.changed-files.outputs.any_changed == 'true' && always()
+        continue-on-error: true
         uses: actions/github-script@v6
         with:
           github-token: ${{secrets.GITHUB_TOKEN}}
@@ -167,22 +172,27 @@ jobs:
             const status = '${{ steps.run-checks.outputs.status }}';
             const label = status === 'success' ? 'sanity-check-passed' : 'sanity-check-failed';
             
-            const oppositeLabel = status === 'success' ? 'sanity-check-failed' : 'sanity-check-passed';
             try {
-              await github.rest.issues.removeLabel({
+              const oppositeLabel = status === 'success' ? 'sanity-check-failed' : 'sanity-check-passed';
+              try {
+                await github.rest.issues.removeLabel({
+                  issue_number: context.issue.number,
+                  owner: context.repo.owner,
+                  repo: context.repo.repo,
+                  name: oppositeLabel
+                });
+              } catch (error) {}
+              
+              await github.rest.issues.addLabels({
                 issue_number: context.issue.number,
                 owner: context.repo.owner,
                 repo: context.repo.repo,
-                name: oppositeLabel
+                labels: [label]
               });
-            } catch (error) {}
-            
-            await github.rest.issues.addLabels({
-              issue_number: context.issue.number,
-              owner: context.repo.owner,
-              repo: context.repo.repo,
-              labels: [label]
-            });
+              console.log('✅ Label added successfully');
+            } catch (error) {
+              console.log('⚠️ Could not add label (likely a fork PR)');
+            }
       
       - name: Fail workflow if checks failed
         if: steps.run-checks.outputs.status == 'failure'

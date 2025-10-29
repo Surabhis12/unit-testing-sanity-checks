@@ -11,6 +11,8 @@ public class Calculator {
         result = a + b;
         return result;
     }
+    
+    
 
     public double divide(double a, double b) throws ArithmeticException {
         if (b == 0.0) {
