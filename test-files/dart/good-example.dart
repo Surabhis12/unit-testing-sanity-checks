@@ -6,6 +6,7 @@ class Calculator {
   double add(double a, double b) {
     _result = a + b;
     return _result;
+    
   }
 
 
