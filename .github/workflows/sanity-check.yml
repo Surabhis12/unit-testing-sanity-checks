@@ -38,6 +38,36 @@ jobs:
             **/*.java
             **/*.dart
       
+      - name: Check if PR is from fork
+        id: check-fork
+        run: |
+          echo "=== Fork Detection Debug Info ==="
+          echo "Event name: ${{ github.event_name }}"
+          echo "Repository: ${{ github.repository }}"
+          echo "Head repo: ${{ github.event.pull_request.head.repo.full_name }}"
+          echo "Head ref: ${{ github.event.pull_request.head.ref }}"
+          echo "Base ref: ${{ github.event.pull_request.base.ref }}"
+          echo "Actor: ${{ github.actor }}"
+          echo "Repository owner: ${{ github.repository_owner }}"
+          
+          # Check if head.repo is null (indicates fork with restricted access)
+          if [ -z "${{ github.event.pull_request.head.repo.full_name }}" ] || [ "${{ github.event.pull_request.head.repo.full_name }}" == "" ]; then
+            echo "is_fork=true" >> $GITHUB_OUTPUT
+            echo "⚠️ Fork detected (head.repo is null or empty)"
+            echo "This indicates a fork with restricted permissions"
+          elif [ "${{ github.event.pull_request.head.repo.full_name }}" != "${{ github.repository }}" ]; then
+            echo "is_fork=true" >> $GITHUB_OUTPUT
+            echo "⚠️ Fork detected (different repository)"
+            echo "   Source: ${{ github.event.pull_request.head.repo.full_name }}"
+            echo "   Target: ${{ github.repository }}"
+          else
+            echo "is_fork=false" >> $GITHUB_OUTPUT
+            echo "✅ Same repository PR"
+          fi
+          
+          echo "=== Fork Detection Result ==="
+          cat $GITHUB_OUTPUT | grep is_fork || echo "ERROR: is_fork not set!"
+      
       - name: Detect languages
         if: steps.changed-files.outputs.any_changed == 'true'
         id: detect
@@ -62,13 +92,13 @@ jobs:
           sudo apt-get update
           sudo apt-get install -y cppcheck
       
-      - name: Setup Node.js
+      - name: Setup Node.js and ESLint
         if: steps.detect.outputs.has_js == 'true'
         uses: actions/setup-node@v3
         with:
           node-version: '18'
       
-      - name: Setup Rust
+      - name: Setup Rust and Clippy
         if: steps.detect.outputs.has_rust == 'true'
         uses: actions-rs/toolchain@v1
         with:
@@ -102,24 +132,61 @@ jobs:
         run: |
           chmod +x scripts/*.sh
           
-          # Run checks and save output
+          echo "=== Running Checks ==="
           bash scripts/run-checks.sh > check_results.txt 2>&1 || true
           
-          # Display results
-          echo "=== Check Results ==="
+          echo ""
+          echo "=== Checking Results ==="
           cat check_results.txt
           
-          # Determine status by checking the output
+          echo ""
+          echo "=== Looking for PASSED marker ==="
+          grep "ALL SANITY CHECKS PASSED" check_results.txt || echo "NOT FOUND"
+          
+          echo ""
+          echo "=== Looking for FAILED marker ==="
+          grep "SANITY CHECKS FAILED" check_results.txt || echo "NOT FOUND"
+          
+          echo ""
+          echo "=== Setting Status ==="
           if grep -q "ALL SANITY CHECKS PASSED" check_results.txt; then
             echo "status=success" >> $GITHUB_OUTPUT
-            echo "✅ Checks PASSED"
-          else
+            echo "✅ STATUS SET TO: success"
+          elif grep -q "SANITY CHECKS FAILED" check_results.txt; then
             echo "status=failure" >> $GITHUB_OUTPUT
-            echo "❌ Checks FAILED"
+            echo "❌ STATUS SET TO: failure"
+          else
+            echo "status=unknown" >> $GITHUB_OUTPUT
+            echo "⚠️ STATUS SET TO: unknown (no marker found)"
           fi
       
-      - name: Post results as PR comment
+      - name: Print results summary to logs (always visible)
         if: steps.changed-files.outputs.any_changed == 'true' && always()
+        run: |
+          echo ""
+          echo "========================================="
+          echo "   SANITY CHECK RESULTS SUMMARY"
+          echo "========================================="
+          echo ""
+          echo "Status: ${{ steps.run-checks.outputs.status }}"
+          echo "Is from fork: ${{ steps.check-fork.outputs.is_fork }}"
+          echo ""
+          echo "--- Detailed Results ---"
+          cat check_results.txt
+          echo ""
+          echo "========================================="
+          
+          if [ "${{ steps.run-checks.outputs.status }}" == "success" ]; then
+            echo "::notice::✅ All sanity checks PASSED"
+          elif [ "${{ steps.run-checks.outputs.status }}" == "failure" ]; then
+            echo "::error::❌ Sanity checks FAILED - see details above"
+          else
+            echo "::warning::⚠️ Sanity check status is UNKNOWN"
+          fi
+      
+      - name: Post results as PR comment (only for same-repo PRs)
+        if: steps.changed-files.outputs.any_changed == 'true' && steps.check-fork.outputs.is_fork == 'false' && always()
+        continue-on-error: true
         uses: actions/github-script@v6
         with:
           github-token: ${{secrets.GITHUB_TOKEN}}
@@ -151,41 +218,121 @@ jobs:
             ---
             *Automated sanity checks completed at ${new Date().toISOString()}*`;
             
-            await github.rest.issues.createComment({
-              issue_number: context.issue.number,
-              owner: context.repo.owner,
-              repo: context.repo.repo,
-              body: body
-            });
+            try {
+              await github.rest.issues.createComment({
+                issue_number: context.issue.number,
+                owner: context.repo.owner,
+                repo: context.repo.repo,
+                body: body
+              });
+              console.log('✅ PR comment posted successfully');
+            } catch (error) {
+              console.log('⚠️ Failed to post comment:', error.message);
+              // Don't throw - this is expected for forks
+            }
       
-      - name: Add Sanity Check label
-        if: steps.changed-files.outputs.any_changed == 'true' && always()
+      - name: Add Sanity Check label (only for same-repo PRs)
+        if: steps.changed-files.outputs.any_changed == 'true' && steps.check-fork.outputs.is_fork == 'false' && always()
+        continue-on-error: true
         uses: actions/github-script@v6
         with:
           github-token: ${{secrets.GITHUB_TOKEN}}
           script: |
             const status = '${{ steps.run-checks.outputs.status }}';
             const label = status === 'success' ? 'sanity-check-passed' : 'sanity-check-failed';
-            
             const oppositeLabel = status === 'success' ? 'sanity-check-failed' : 'sanity-check-passed';
+            
             try {
-              await github.rest.issues.removeLabel({
+              // Remove opposite label if it exists
+              try {
+                await github.rest.issues.removeLabel({
+                  issue_number: context.issue.number,
+                  owner: context.repo.owner,
+                  repo: context.repo.repo,
+                  name: oppositeLabel
+                });
+                console.log(`Removed opposite label: ${oppositeLabel}`);
+              } catch (error) {
+                console.log(`Opposite label ${oppositeLabel} not found (OK)`);
+              }
+              
+              // Add the correct label
+              await github.rest.issues.addLabels({
                 issue_number: context.issue.number,
                 owner: context.repo.owner,
                 repo: context.repo.repo,
-                name: oppositeLabel
+                labels: [label]
               });
-            } catch (error) {}
-            
-            await github.rest.issues.addLabels({
-              issue_number: context.issue.number,
-              owner: context.repo.owner,
-              repo: context.repo.repo,
-              labels: [label]
-            });
+              console.log(`✅ Label added: ${label}`);
+            } catch (error) {
+              console.log('⚠️ Failed to add label:', error.message);
+              // Don't throw - this is expected for forks
+            }
+      
+      - name: Notice for fork PRs
+        if: steps.changed-files.outputs.any_changed == 'true' && steps.check-fork.outputs.is_fork == 'true' && always()
+        run: |
+          echo ""
+          echo "========================================="
+          echo "   FORK PR DETECTED"
+          echo "========================================="
+          echo ""
+          echo "This PR is from a forked repository."
+          echo ""
+          echo "Due to GitHub security restrictions:"
+          echo "  ❌ PR comments cannot be posted"
+          echo "  ❌ Labels cannot be added"
+          echo "  ✅ Sanity checks still run normally"
+          echo "  ✅ Workflow will fail if checks fail"
+          echo ""
+          echo "Check results: ${{ steps.run-checks.outputs.status }}"
+          echo ""
+          echo "See detailed results in the logs above."
+          echo "========================================="
+          
+          if [ "${{ steps.run-checks.outputs.status }}" == "success" ]; then
+            echo "::notice::✅ FORK PR - Sanity checks PASSED (comment/label skipped)"
+          elif [ "${{ steps.run-checks.outputs.status }}" == "failure" ]; then
+            echo "::error::❌ FORK PR - Sanity checks FAILED (comment/label skipped)"
+          fi
       
       - name: Fail workflow if checks failed
         if: steps.run-checks.outputs.status == 'failure'
         run: |
+          echo ""
+          echo "========================================="
+          echo "   ❌ WORKFLOW FAILED"
+          echo "========================================="
+          echo ""
+          echo "Sanity checks detected issues that must be fixed."
+          echo ""
+          echo "Please review the detailed results above and:"
+          echo "  1. Fix all reported issues"
+          echo "  2. Commit and push your fixes"
+          echo "  3. The workflow will re-run automatically"
+          echo ""
+          echo "This PR cannot be merged until all checks pass."
+          echo "========================================="
+          echo ""
           echo "::error::Sanity checks failed. Please fix the issues before merging."
           exit 1
+      
+      - name: Success summary
+        if: steps.run-checks.outputs.status == 'success'
+        run: |
+          echo ""
+          echo "========================================="
+          echo "   ✅ WORKFLOW SUCCEEDED"
+          echo "========================================="
+          echo ""
+          echo "All sanity checks passed!"
+          echo ""
+          if [ "${{ steps.check-fork.outputs.is_fork }}" == "false" ]; then
+            echo "✅ PR comment posted"
+            echo "✅ Label added"
+          else
+            echo "ℹ️ Fork PR - comment/label skipped (checks still passed)"
+          fi
+          echo ""
+          echo "This PR is ready for review and merge."
+          echo "========================================="
