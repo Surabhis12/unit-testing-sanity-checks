@@ -14,6 +14,7 @@ void overflow() {
     strcpy(buf, "This is way too long for buffer");
 }
 
+
 // Null pointer
 void nullPtr() {
     int* p = nullptr;
