@@ -1,44 +1,32 @@
 #include <iostream>
-#include <vector>
-#include <memory>
+#include <cstring>
+using namespace std;
 
+// Memory leak
+void leak() {
+    int* p = (int*)malloc(100 * sizeof(int));
+    *p = 42;
+}
 
-class Calculator {
-private:
-    double result;
+// Buffer overflow
+void overflow() {
+    char buf[10];
+    strcpy(buf, "This is way too long for buffer");
+}
 
+// Null pointer
+void nullPtr() {
+    int* p = nullptr;
+    *p = 10;
+}
 
-public:
-    Calculator() : result(0.0) {}
-
-
-    double add(double a, double b) {
-        result = a + b;
-        return result;
-    }
-
-
-    double divide(double a, double b) {
-        if (b == 0.0) {
-            throw std::invalid_argument("Division by zero");
-        }
-        result = a / b;
-        return result;
-    }
-
-
-    double getResult() const {
-        return result;
-    }
-};
-
+// Uninitialized
+int uninit() {
+    int x;
+    return x + 10;
+}
 
 int main() {
-    Calculator calc;
-   
-    std::cout << "Calculator Test" << std::endl;
-    std::cout << "5 + 3 = " << calc.add(5, 3) << std::endl;
-    std::cout << "15 / 3 = " << calc.divide(15, 3) << std::endl;
-   
+    leak();
     return 0;
 }
