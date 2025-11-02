@@ -129,6 +129,7 @@ jobs:
       - name: Run sanity checks
         if: steps.changed-files.outputs.any_changed == 'true'
         id: run-checks
+        continue-on-error: true
         run: |
           chmod +x scripts/*.sh
           
@@ -159,6 +160,68 @@ jobs:
             echo "status=unknown" >> $GITHUB_OUTPUT
             echo "⚠️ STATUS SET TO: unknown (no marker found)"
           fi
+      
+      - name: Generate Job Summary (visible for all PRs)
+        if: steps.changed-files.outputs.any_changed == 'true' && always()
+        run: |
+          STATUS="${{ steps.run-checks.outputs.status }}"
+          IS_FORK="${{ steps.check-fork.outputs.is_fork }}"
+          
+          if [ "$STATUS" == "success" ]; then
+            EMOJI="✅"
+            STATUS_TEXT="PASSED"
+          else
+            EMOJI="❌"
+            STATUS_TEXT="FAILED"
+          fi
+          
+          echo "# ${EMOJI} Sanity Check ${STATUS_TEXT}" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          
+          if [ "$IS_FORK" == "true" ]; then
+            echo "> ℹ️ **Note:** This PR is from a forked repository." >> $GITHUB_STEP_SUMMARY
+            echo "> Due to GitHub security restrictions, comments cannot be posted directly on fork PRs." >> $GITHUB_STEP_SUMMARY
+            echo "> **Results are shown below:**" >> $GITHUB_STEP_SUMMARY
+            echo "" >> $GITHUB_STEP_SUMMARY
+          fi
+          
+          if [ "$STATUS" == "failure" ]; then
+            echo "## 🚨 Action Required" >> $GITHUB_STEP_SUMMARY
+            echo "" >> $GITHUB_STEP_SUMMARY
+            echo "Please fix the issues below before merging." >> $GITHUB_STEP_SUMMARY
+            echo "" >> $GITHUB_STEP_SUMMARY
+            
+            # Extract key errors
+            echo "### Key Issues Found:" >> $GITHUB_STEP_SUMMARY
+            echo "" >> $GITHUB_STEP_SUMMARY
+            grep -E "ERROR|FAILED|error:|warning:" check_results.txt | head -15 | while read line; do
+              echo "- \`$line\`" >> $GITHUB_STEP_SUMMARY
+            done
+            echo "" >> $GITHUB_STEP_SUMMARY
+          fi
+          
+          echo "## 📋 Full Results" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "<details>" >> $GITHUB_STEP_SUMMARY
+          echo "<summary>Click to expand detailed results</summary>" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "\`\`\`" >> $GITHUB_STEP_SUMMARY
+          cat check_results.txt >> $GITHUB_STEP_SUMMARY
+          echo "\`\`\`" >> $GITHUB_STEP_SUMMARY
+          echo "</details>" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          
+          if [ "$STATUS" == "failure" ]; then
+            echo "---" >> $GITHUB_STEP_SUMMARY
+            echo "" >> $GITHUB_STEP_SUMMARY
+            echo "**Next Steps:**" >> $GITHUB_STEP_SUMMARY
+            echo "1. Fix the reported issues" >> $GITHUB_STEP_SUMMARY
+            echo "2. Commit and push your changes" >> $GITHUB_STEP_SUMMARY
+            echo "3. The checks will re-run automatically" >> $GITHUB_STEP_SUMMARY
+            echo "" >> $GITHUB_STEP_SUMMARY
+          fi
+          
+          echo "*Automated sanity checks completed at $(date -u +"%Y-%m-%d %H:%M:%S UTC")*" >> $GITHUB_STEP_SUMMARY
       
       - name: Print results summary to logs (always visible)
         if: steps.changed-files.outputs.any_changed == 'true' && always()
@@ -204,10 +267,33 @@ jobs:
             const statusEmoji = status === 'success' ? '✅' : '❌';
             const statusText = status === 'success' ? 'PASSED' : 'FAILED';
             
+            // Extract key errors for failure summary
+            let errorSummary = '';
+            if (status === 'failure') {
+              const lines = results.split('\n');
+              const errorLines = lines.filter(line => 
+                line.includes('ERROR') || 
+                line.includes('FAILED') || 
+                line.includes('error:') ||
+                line.includes('warning:')
+              ).slice(0, 15);
+              
+              if (errorLines.length > 0) {
+                errorSummary = '\n### 🚨 Key Issues Found:\n\n';
+                errorLines.forEach((line, idx) => {
+                  errorSummary += `${idx + 1}. \`${line.trim()}\`\n`;
+                });
+                errorSummary += '\n---\n';
+              }
+            }
+            
             const body = `## ${statusEmoji} Sanity Check ${statusText}
             
+            ${status === 'failure' ? '⚠️ **Action Required:** Please fix the issues below before merging.\n' : ''}
+            ${errorSummary}
+            
             <details>
-            <summary>Click to view detailed results</summary>
+            <summary>📋 Click to view full detailed results</summary>
             
             \`\`\`
             ${results}
@@ -216,6 +302,7 @@ jobs:
             </details>
             
             ---
+            ${status === 'failure' ? '**Next Steps:** Fix the reported issues, commit your changes, and the checks will re-run automatically.\n\n' : ''}
             *Automated sanity checks completed at ${new Date().toISOString()}*`;
             
             try {
@@ -228,7 +315,6 @@ jobs:
               console.log('✅ PR comment posted successfully');
             } catch (error) {
               console.log('⚠️ Failed to post comment:', error.message);
-              // Don't throw - this is expected for forks
             }
       
       - name: Add Sanity Check label (only for same-repo PRs)
@@ -266,7 +352,6 @@ jobs:
               console.log(`✅ Label added: ${label}`);
             } catch (error) {
               console.log('⚠️ Failed to add label:', error.message);
-              // Don't throw - this is expected for forks
             }
       
       - name: Notice for fork PRs
@@ -283,17 +368,18 @@ jobs:
           echo "  ❌ PR comments cannot be posted"
           echo "  ❌ Labels cannot be added"
           echo "  ✅ Sanity checks still run normally"
+          echo "  ✅ Results available in Job Summary above"
           echo "  ✅ Workflow will fail if checks fail"
           echo ""
           echo "Check results: ${{ steps.run-checks.outputs.status }}"
           echo ""
-          echo "See detailed results in the logs above."
+          echo "📋 View complete results in the 'Summary' tab above"
           echo "========================================="
           
           if [ "${{ steps.run-checks.outputs.status }}" == "success" ]; then
-            echo "::notice::✅ FORK PR - Sanity checks PASSED (comment/label skipped)"
+            echo "::notice::✅ FORK PR - Sanity checks PASSED (see Job Summary for details)"
           elif [ "${{ steps.run-checks.outputs.status }}" == "failure" ]; then
-            echo "::error::❌ FORK PR - Sanity checks FAILED (comment/label skipped)"
+            echo "::error::❌ FORK PR - Sanity checks FAILED (see Job Summary for details)"
           fi
       
       - name: Fail workflow if checks failed
@@ -310,6 +396,10 @@ jobs:
           echo "  1. Fix all reported issues"
           echo "  2. Commit and push your fixes"
           echo "  3. The workflow will re-run automatically"
+          echo ""
+          if [ "${{ steps.check-fork.outputs.is_fork }}" == "true" ]; then
+            echo "📋 For fork PRs: View complete results in the 'Summary' tab"
+          fi
           echo ""
           echo "This PR cannot be merged until all checks pass."
           echo "========================================="
@@ -331,7 +421,7 @@ jobs:
             echo "✅ PR comment posted"
             echo "✅ Label added"
           else
-            echo "ℹ️ Fork PR - comment/label skipped (checks still passed)"
+            echo "ℹ️ Fork PR - Results available in Job Summary"
           fi
           echo ""
           echo "This PR is ready for review and merge."
