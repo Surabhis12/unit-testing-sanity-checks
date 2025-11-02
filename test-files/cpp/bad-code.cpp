@@ -27,6 +27,7 @@ int uninit() {
     return x + 10;
 }
 
+
 int main() {
     leak();
     return 0;
