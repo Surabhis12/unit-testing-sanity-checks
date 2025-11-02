@@ -8,6 +8,7 @@ void leak() {
     *p = 42;
 }
 
+
 // Buffer overflow
 void overflow() {
     char buf[10];
