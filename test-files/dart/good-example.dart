@@ -6,7 +6,9 @@ class Calculator {
   double add(double a, double b) {
     _result = a + b;
     return _result;
+    
   }
+
 
   double divide(double a, double b) {
     if (b == 0.0) {
@@ -16,8 +18,8 @@ class Calculator {
     return _result;
   }
 }
-
 void main() {
   final calculator = Calculator();
   debugPrint('Result: ${calculator.add(5, 3)}');
+  
 }
