@@ -15,6 +15,7 @@ fun process(input: String?) {
         println(total) // prints 5, but outer 'total' stays 10
     }
 
+
     // 4. Ignored return value
     listOf(1, 2, 3).map { it * 2 } // return ignored — useless call unless rule "ignoredReturnValue" is on
 

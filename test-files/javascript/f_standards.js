@@ -14,6 +14,7 @@ const path = require('path');
 // =============== 1) Hard-coded secret (detectable by secret scanners) =========
 const API_TOKEN = 'sk_test_ABCDEFGHIJKLMNOPQRSTUVWXYZ123456'; // secret in source
 
+
 // =============== 2) Weak randomness (Math.random for tokens) ==================
 function weakToken(len = 8) {
   // Not cryptographically secure; looks "normal" and often used in apps.

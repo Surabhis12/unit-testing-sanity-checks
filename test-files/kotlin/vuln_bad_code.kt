@@ -15,6 +15,7 @@ import javax.crypto.spec.SecretKeySpec
 // 1) Hardcoded secret key (should never appear in code)
 const val SECRET_KEY = "MySuperSecretKey123" // ⚠️ Vulnerability: hardcoded credential
 
+
 // 2) Weak random token generator (not cryptographically secure)
 fun generateWeakToken(): String {
     val rand = Random(System.currentTimeMillis()) // predictable seed

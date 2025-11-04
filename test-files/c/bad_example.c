@@ -8,6 +8,7 @@
 #include <string.h>
 #include <stdint.h>
 
+
 /* 1) Uninitialized variable used (control-flow dependent) */
 int uninit_usage(int flag)
 {

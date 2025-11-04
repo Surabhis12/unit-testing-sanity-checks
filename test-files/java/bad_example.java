@@ -15,6 +15,7 @@ class TrickyBugs {
         }
         System.out.println(s.length()); // potential NullPointerException
     }
+    
 
     // 2) Unclosed resource (RESOURCE_LEAK)
     static void leakFile() throws IOException {

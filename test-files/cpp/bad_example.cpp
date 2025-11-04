@@ -9,6 +9,7 @@
 #include <cstring>
 #include <stdexcept>
 
+
 // 1) Class without virtual destructor — classic polymorphic leak
 class Base {
 public:

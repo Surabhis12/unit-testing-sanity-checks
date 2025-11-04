@@ -12,6 +12,7 @@ import java.time.Instant
 import java.util.*
 import javax.net.ssl.*
 
+
 // ------------------ 1) Hard-coded secret (should be detected by secret scanners) ------------
 private const val API_KEY = "AKIA_VERY_SECRET_EXAMPLE_1234567890"
 

@@ -16,6 +16,7 @@ String generateWeakToken() {
   return List<int>.generate(16, (_) => r.nextInt(256)).join('-');
 }
 
+
 /// 3) Logging sensitive data (bad practice)
 void logCredentials(String user, String pass) {
   // prints secrets to console / logs

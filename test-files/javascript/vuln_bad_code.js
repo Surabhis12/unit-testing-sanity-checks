@@ -15,6 +15,7 @@ function weakToken() {
   return Math.floor(Math.random() * 1e9).toString(16);
 }
 
+
 // 3) eval / new Function usage (RCE risk)
 function dangerousEval(userExpr) {
   // userExpr might be attacker-controlled

@@ -14,6 +14,7 @@ func processData(_ input: String?) {
     name = nil
     print(name.count) // crash, but analyzer won't warn unless strict mode
 
+
     // 4. Shadowing variable
     let data = "Hello"
     if true {
