@@ -150,7 +150,7 @@ jobs:
             echo "⚠️ STATUS SET TO: unknown"
           fi
       
-      - name: Post results as PR comment (ALL languages in summary!)
+      - name: Post results as PR comment (Complete error visibility!)
         if: steps.changed-files.outputs.any_changed == 'true' && always()
         uses: actions/github-script@v6
         with:
@@ -176,102 +176,95 @@ jobs:
               
               errorSummary = '\n## 🚨 Key Issues Found:\n\n';
               
-              // Track current language and errors
+              // Track current language and collect ALL output lines
               let currentLanguage = '';
               let languageErrors = {};
+              let captureMode = false;
               
               for (let i = 0; i < lines.length; i++) {
                 const line = lines[i];
                 
-                // Detect language section headers from check scripts
-                if (line.includes('C/C++ SANITY CHECK') || line.includes('Running C/C++ checks')) {
+                // Detect language section headers
+                if (line.includes('C/C++ SANITY CHECK')) {
                   currentLanguage = 'C/C++';
-                  if (!languageErrors[currentLanguage]) languageErrors[currentLanguage] = [];
-                } else if (line.includes('RUST SANITY CHECK') || line.includes('Running Rust checks')) {
+                  languageErrors[currentLanguage] = [];
+                  captureMode = true;
+                  continue;
+                } else if (line.includes('RUST SANITY CHECK')) {
                   currentLanguage = 'Rust';
-                  if (!languageErrors[currentLanguage]) languageErrors[currentLanguage] = [];
-                } else if (line.includes('JAVASCRIPT SANITY CHECK') || line.includes('Running JavaScript checks')) {
+                  languageErrors[currentLanguage] = [];
+                  captureMode = true;
+                  continue;
+                } else if (line.includes('JAVASCRIPT SANITY CHECK')) {
                   currentLanguage = 'JavaScript';
-                  if (!languageErrors[currentLanguage]) languageErrors[currentLanguage] = [];
-                } else if (line.includes('KOTLIN SANITY CHECK') || line.includes('Running Kotlin checks')) {
+                  languageErrors[currentLanguage] = [];
+                  captureMode = true;
+                  continue;
+                } else if (line.includes('KOTLIN SANITY CHECK')) {
                   currentLanguage = 'Kotlin';
-                  if (!languageErrors[currentLanguage]) languageErrors[currentLanguage] = [];
-                } else if (line.includes('JAVA SANITY CHECK') || line.includes('Running Java checks')) {
+                  languageErrors[currentLanguage] = [];
+                  captureMode = true;
+                  continue;
+                } else if (line.includes('JAVA SANITY CHECK')) {
                   currentLanguage = 'Java';
-                  if (!languageErrors[currentLanguage]) languageErrors[currentLanguage] = [];
-                } else if (line.includes('SWIFT SANITY CHECK') || line.includes('Running Swift checks')) {
+                  languageErrors[currentLanguage] = [];
+                  captureMode = true;
+                  continue;
+                } else if (line.includes('SWIFT SANITY CHECK')) {
                   currentLanguage = 'Swift';
-                  if (!languageErrors[currentLanguage]) languageErrors[currentLanguage] = [];
-                } else if (line.includes('FLUTTER/DART SANITY CHECK') || line.includes('Running Flutter checks')) {
+                  languageErrors[currentLanguage] = [];
+                  captureMode = true;
+                  continue;
+                } else if (line.includes('FLUTTER/DART SANITY CHECK')) {
                   currentLanguage = 'Dart/Flutter';
-                  if (!languageErrors[currentLanguage]) languageErrors[currentLanguage] = [];
+                  languageErrors[currentLanguage] = [];
+                  captureMode = true;
+                  continue;
                 }
                 
-                // Capture ALL error patterns when we have a current language
-                if (currentLanguage) {
-                  // Pattern 1: Lines with ❌ ERROR (from enhanced scripts)
-                  if (line.includes('❌ ERROR:') || line.includes('❌ error:')) {
-                    languageErrors[currentLanguage].push(line.trim());
+                // Stop capturing when we hit the check PASSED/FAILED line
+                if (line.includes('sanity check PASSED') || line.includes('sanity check FAILED')) {
+                  captureMode = false;
+                  continue;
+                }
+                
+                // Stop at section separators
+                if (line.includes('>>>') || line.includes('Running') || line.includes('================================')) {
+                  if (line.includes('>>>')) {
+                    captureMode = false;
                   }
-                  // Pattern 2: Lines with error: or warning: (from cppcheck and others)
-                  else if ((line.includes('error:') || line.includes('warning:')) && 
-                           (line.includes('.c:') || line.includes('.cpp:') || line.includes('.h:') ||
-                            line.includes('.rs:') || line.includes('.js:') || line.includes('.kt:') ||
-                            line.includes('.java:') || line.includes('.swift:') || line.includes('.dart:'))) {
-                    languageErrors[currentLanguage].push(line.trim());
+                  continue;
+                }
+                
+                // Capture EVERYTHING while in capture mode for this language
+                if (captureMode && currentLanguage && line.trim() !== '') {
+                  // Skip the "Checking for:" intro lines
+                  if (line.includes('Checking for:') || line.includes('✓')) {
+                    continue;
                   }
-                  // Pattern 3: Lines with file paths and line numbers (test-files/...)
-                  else if (line.match(/test-files\/.*\.(c|cpp|h|hpp|rs|js|jsx|ts|tsx|kt|java|swift|dart):\d+/)) {
-                    languageErrors[currentLanguage].push(line.trim());
-                  }
-                  // Pattern 4: Lines starting with line numbers from grep output
-                  else if (line.match(/^\d+:/) && currentLanguage) {
-                    languageErrors[currentLanguage].push(line.trim());
-                  }
+                  
+                  languageErrors[currentLanguage].push(line);
                 }
               }
               
-              // Build summary by language
-              let summaryCount = 1;
+              // Build summary by language - show EVERYTHING
               let totalErrors = 0;
               
               for (const [lang, errors] of Object.entries(languageErrors)) {
                 if (errors.length > 0) {
                   totalErrors += errors.length;
                   errorSummary += `### ${lang}\n`;
-                  const displayCount = Math.min(errors.length, 15);
                   
-                  for (let i = 0; i < displayCount; i++) {
-                    errorSummary += `${summaryCount}. \`${errors[i]}\`\n`;
-                    summaryCount++;
-                  }
-                  
-                  if (errors.length > displayCount) {
-                    errorSummary += `*... and ${errors.length - displayCount} more ${lang} issues*\n`;
-                  }
-                  errorSummary += '\n';
-                }
-              }
-              
-              if (totalErrors === 0) {
-                // Fallback: if no errors captured by language grouping, show generic errors
-                const genericErrors = lines.filter(line => 
-                  line.includes('ERROR') || 
-                  line.includes('FAILED') || 
-                  line.includes('error:') ||
-                  line.includes('warning:')
-                ).slice(0, 20);
-                
-                if (genericErrors.length > 0) {
-                  errorSummary += '### Issues Found\n';
-                  genericErrors.forEach((line, idx) => {
-                    errorSummary += `${idx + 1}. \`${line.trim()}\`\n`;
+                  // Show ALL errors, no limit
+                  errors.forEach(error => {
+                    errorSummary += `${error}\n`;
                   });
+                  
                   errorSummary += '\n';
                 }
               }
               
-              errorSummary += `**Total issues found: ${totalErrors > 0 ? totalErrors : 'See details below'}**\n\n---\n`;
+              errorSummary += `**Total issues found: ${totalErrors}**\n\n---\n`;
             }
             
             const forkNotice = isFork ? '\n> ℹ️ **Note:** This PR is from a forked repository.\n\n' : '';
@@ -282,7 +275,7 @@ jobs:
             ${errorSummary}
             
             <details>
-            <summary>📋 Click to view full detailed results</summary>
+            <summary>📋 Click to view full detailed results (with headers and formatting)</summary>
             
             \`\`\`
             ${results}
