@@ -174,7 +174,6 @@ while IFS= read -r file; do
         FAILED=true
     fi
     
-    
     # 15. Raw pointer operations
     if grep -n "std::ptr::write\|ptr::write\|std::ptr::read\|ptr::read" "$file" > /dev/null; then
         echo "❌ ERROR: $file uses raw pointer operations"

@@ -195,8 +195,8 @@ for file in $FILES; do
         ERROR_COUNT=$((ERROR_COUNT + 1))
         FAILED=true
     fi
-    
 done
+
 
 echo ""
 echo "================================"

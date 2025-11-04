@@ -156,6 +156,7 @@ for file in $FILES; do
         FAILED=true
     fi
     
+    
     # 14. Empty catch blocks
     if grep -Pzo "catch\s*\([^)]*\)\s*\{\s*\}" "$file" > /dev/null 2>&1; then
         echo "❌ ERROR: $file has empty catch blocks (swallows exceptions)"
