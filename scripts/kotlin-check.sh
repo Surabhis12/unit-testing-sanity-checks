@@ -196,7 +196,138 @@ for file in $FILES; do
         FAILED=true
     fi
     
+    # 4. SQL injection pattern
+    if grep -n "SELECT.*FROM\|INSERT.*INTO\|UPDATE.*SET" "$file" > /dev/null; then
+        if grep -n "\"SELECT.*\$\|\"INSERT.*\$\|\"UPDATE.*\$\|SELECT.*+.*username" "$file" > /dev/null; then
+            echo "❌ ERROR: $file constructs SQL via string concatenation (SQL injection risk)"
+            grep -n "SELECT.*\$\|INSERT.*\$\|SELECT.*+" "$file"
+            ERROR_COUNT=$((ERROR_COUNT + 1))
+            FAILED=true
+        fi
+    fi
+    
+    # 5. Insecure TLS - naive TrustManager
+    if grep -n "X509TrustManager\|checkServerTrusted\|getAcceptedIssuers" "$file" > /dev/null; then
+        if grep -n "override.*checkServerTrusted.*{}\|getAcceptedIssuers.*arrayOf()" "$file" > /dev/null; then
+            echo "❌ ERROR: $file disables TLS certificate validation"
+            grep -n "TrustManager\|checkServerTrusted" "$file"
+            ERROR_COUNT=$((ERROR_COUNT + 1))
+            FAILED=true
+        fi
+    fi
+    
+    # 6. Insecure deserialization
+    if grep -n "ObjectInputStream.*readObject()" "$file" > /dev/null; then
+        echo "❌ ERROR: $file uses insecure deserialization"
+        grep -n "ObjectInputStream\|readObject" "$file"
+        ERROR_COUNT=$((ERROR_COUNT + 1))
+        FAILED=true
+    fi
+    
+    # 7. Force unwrap operator !!
+    if grep -n "!!" "$file" > /dev/null; then
+        echo "❌ ERROR: $file uses !! force-unwrap operator (crash risk)"
+        grep -n "!!" "$file"
+        ERROR_COUNT=$((ERROR_COUNT + 1))
+        FAILED=true
+    fi
+    
+    # 8. Unsafe cast
+    if grep -n " as String\| as Int\| as Map\| as List" "$file" > /dev/null; then
+        if ! grep -n " as?" "$file" > /dev/null; then
+            echo "❌ ERROR: $file uses unsafe cast 'as' (runtime exception risk)"
+            grep -n " as String\| as Int\| as Map" "$file"
+            ERROR_COUNT=$((ERROR_COUNT + 1))
+            FAILED=true
+        fi
+    fi
+    
+    # 9. Empty catch blocks
+    if grep -Pzo "catch\s*\([^)]*\)\s*\{\s*\}" "$file" > /dev/null 2>&1; then
+        echo "❌ ERROR: $file has empty catch blocks (swallows errors)"
+        grep -n "catch" "$file"
+        ERROR_COUNT=$((ERROR_COUNT + 1))
+        FAILED=true
+    fi
+    
+    # 10. Command injection via Runtime.exec
+    if grep -n "Runtime\.getRuntime()\.exec\|exec(.*sh.*-c\|exec(arrayOf.*sh" "$file" > /dev/null; then
+        echo "❌ ERROR: $file uses shell command execution (command injection risk)"
+        grep -n "Runtime.*exec\|exec(.*sh" "$file"
+        ERROR_COUNT=$((ERROR_COUNT + 1))
+        FAILED=true
+    fi
+    
+    # 11. Weak hashing (MD5)
+    if grep -n "MessageDigest\.getInstance.*MD5\|getInstance.*\"MD5\"" "$file" > /dev/null; then
+        echo "❌ ERROR: $file uses weak MD5 hashing"
+        grep -n "MD5\|MessageDigest" "$file"
+        ERROR_COUNT=$((ERROR_COUNT + 1))
+        FAILED=true
+    fi
+    
+    # 12. XOR obfuscation as encryption
+    if grep -n "xor.*0x[A-Fa-f0-9]\|encrypt.*xor\|obfuscate\|\.xor" "$file" > /dev/null; then
+        echo "❌ ERROR: $file uses weak XOR obfuscation as encryption"
+        grep -n "xor\|obfuscate" "$file"
+        ERROR_COUNT=$((ERROR_COUNT + 1))
+        FAILED=true
+    fi
+    
+    # 13. Predictable temp files
+    if grep -n "/tmp/\|java\.io\.tmpdir" "$file" > /dev/null; then
+        if grep -n "pid()\|currentTimeMillis()\|ProcessHandle" "$file" > /dev/null; then
+            echo "❌ ERROR: $file creates predictable temp files (TOCTOU risk)"
+            grep -n "/tmp/\|tmpdir" "$file"
+            ERROR_COUNT=$((ERROR_COUNT + 1))
+            FAILED=true
+        fi
+    fi
+    
+    # 14. RegExp from user input
+    if grep -n "Regex(" "$file" > /dev/null; then
+        if grep -n "pattern\|input\|user\|param" "$file" > /dev/null; then
+            echo "❌ ERROR: $file creates RegExp from user input (ReDoS risk)"
+            grep -n "Regex(" "$file"
+            ERROR_COUNT=$((ERROR_COUNT + 1))
+            FAILED=true
+        fi
+    fi
+    
+    # 15. Global mutable state
+    if grep -n "^var GLOBAL\|^var [A-Z_]*CACHE\|^var [A-Z_]*STORE" "$file" > /dev/null; then
+        echo "❌ ERROR: $file uses global mutable state"
+        grep -n "^var GLOBAL\|^var.*CACHE\|^var.*STORE" "$file"
+        ERROR_COUNT=$((ERROR_COUNT + 1))
+        FAILED=true
+    fi
+    
+    # 16. Reflection without validation
+    if grep -n "Class\.forName\|getDeclaredConstructor\|newInstance" "$file" > /dev/null; then
+        echo "❌ ERROR: $file uses reflection (potential security risk)"
+        grep -n "Class\.forName\|getDeclaredConstructor\|newInstance" "$file"
+        ERROR_COUNT=$((ERROR_COUNT + 1))
+        FAILED=true
+    fi
+    
+    # 17. Blocking I/O
+    if grep -n "\.readText()\|\.readBytes()\|\.readLines()\|\.writeText(" "$file" > /dev/null; then
+        echo "❌ ERROR: $file uses blocking I/O (bad for UI/server threads)"
+        grep -n "\.read\|\.write" "$file"
+        ERROR_COUNT=$((ERROR_COUNT + 1))
+        FAILED=true
+    fi
+    
+    # 18. Weak crypto (ECB mode)
+    if grep -n "AES/ECB\|Cipher\.getInstance.*AES/ECB" "$file" > /dev/null; then
+        echo "❌ ERROR: $file uses insecure AES/ECB mode"
+        grep -n "ECB\|Cipher\.getInstance" "$file"
+        ERROR_COUNT=$((ERROR_COUNT + 1))
+        FAILED=true
+    fi
+    
 done
+
 
 echo ""
 echo "================================"
