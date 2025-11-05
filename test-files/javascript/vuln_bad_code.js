@@ -10,6 +10,7 @@ const crypto = require('crypto');
 // 1) Hard-coded secrets
 const API_KEY = 'AKIA-VERY-SECRET-EXAMPLE';
 
+
 // 2) Using Math.random() for tokens (weak RNG)
 function weakToken() {
   return Math.floor(Math.random() * 1e9).toString(16);

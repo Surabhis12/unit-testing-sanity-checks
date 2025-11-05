@@ -13,6 +13,7 @@ import CommonCrypto // for MD5 (insecure) — available on Apple platforms
 // ---------------------------
 let API_SECRET = "TOP-SECRET-DO-NOT-COMMIT-12345" // secret in repo
 
+
 // ---------------------------
 // 2) Storing secrets in UserDefaults (insecure)
 // ---------------------------

@@ -14,6 +14,7 @@ fn main() {
     // 3. Unused variable — default Clippy may skip unless “unused_variables” enforced
     let temp_result = compute_stuff(10);
 
+    
     // 4. Float equality comparison
     let a = 0.1 + 0.2;
     let b = 0.3;

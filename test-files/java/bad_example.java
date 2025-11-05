@@ -7,6 +7,7 @@ import java.io.*;
 
 class TrickyBugs {
 
+    
     // 1) Null dereference after conditional (NP_ALWAYS_NULL)
     static void nullDereference() {
         String s = null;

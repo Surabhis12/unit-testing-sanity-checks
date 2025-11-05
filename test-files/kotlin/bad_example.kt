@@ -8,6 +8,7 @@ fun process(input: String?) {
     val temp = calculateSomething() // result never used, needs 'unusedVariable' rule
     // no warning unless linting for unused values
 
+
     // 3. Shadowed variable
     var total = 10
     if (true) {

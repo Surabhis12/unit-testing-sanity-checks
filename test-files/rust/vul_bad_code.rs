@@ -14,6 +14,7 @@ fn main() {
         let dangling: *mut i32 = mem::transmute(0xDEADBEEFusize); // fake pointer
         println!("Value: {}", *dangling); // Undefined behavior
     }
+    
 
     // --- SECURITY VULNERABILITY 2: Sensitive data exposure ---
     let password = "supersecret123"; // Hardcoded password

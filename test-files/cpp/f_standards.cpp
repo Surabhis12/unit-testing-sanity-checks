@@ -29,6 +29,8 @@ char *alloc_mul(size_t count, size_t size)
     return p;
 }
 
+
+
 // --- 2) Unsafe C-string copy (buffer overflow if input is long)
 void unsafe_copy(const char *in)
 {

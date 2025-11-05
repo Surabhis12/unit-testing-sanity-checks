@@ -10,6 +10,7 @@ import 'dart:math';
 /// 1) Hard-coded secret (embedded credential)
 const String API_KEY = 'APIKEY-DO-NOT-USE-1234567890'; // secret in source
 
+
 /// 2) Weak randomness for tokens (not cryptographically secure)
 String generateWeakToken() {
   final r = Random(DateTime.now().millisecondsSinceEpoch); // predictable seed

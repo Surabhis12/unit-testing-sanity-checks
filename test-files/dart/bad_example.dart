@@ -11,6 +11,7 @@ int computeLate() {
   return lateValue + 1;
 }
 
+
 // 2) Null dereference due to missing null check
 void nullDereference(String? name) {
   print("Length: ${name.length}"); // 'name' could be null

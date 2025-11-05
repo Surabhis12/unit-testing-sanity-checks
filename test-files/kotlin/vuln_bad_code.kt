@@ -12,6 +12,7 @@ import kotlin.random.Random
 import javax.crypto.Cipher
 import javax.crypto.spec.SecretKeySpec
 
+
 // 1) Hardcoded secret key (should never appear in code)
 const val SECRET_KEY = "MySuperSecretKey123" // ⚠️ Vulnerability: hardcoded credential
 

@@ -13,6 +13,7 @@ function processData(data) {
         total += i * 2; // NaN logic bug
     }
 
+    
     // 4. Misplaced semicolon after if
     if (data) ; {
         console.log("Always runs"); // block runs even if data is falsy
