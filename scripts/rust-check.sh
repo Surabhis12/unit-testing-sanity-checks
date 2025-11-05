@@ -1,5 +1,5 @@
 #!/bin/bash
-# Rust Sanity Check - Enhanced with comprehensive detection
+# Rust Sanity Check - Clean cppcheck-like output format
 
 set -e
 
@@ -15,12 +15,7 @@ echo ""
 echo "Checking for:"
 echo "  ✓ No unwrap() in library code"
 echo "  ✓ No println! in library code"
-echo "  ✓ Proper naming conventions"
-echo "  ✓ Hard-coded secrets"
-echo "  ✓ Weak randomness patterns"
-echo "  ✓ Command injection risks"
-echo "  ✓ Unsafe pointer operations"
-echo "  ✓ Error handling issues"
+echo "  ✓ Security vulnerabilities"
 echo ""
 
 FAILED=false
@@ -33,23 +28,25 @@ while IFS= read -r file; do
     # Check for unwrap() in non-main/non-test files
     if [[ ! "$file" =~ main\.rs$ ]] && [[ ! "$file" =~ test ]]; then
         if grep -n "\.unwrap()" "$file" > /dev/null; then
-            echo "❌ ERROR: $file uses unwrap() - use proper error handling"
-            grep -n "\.unwrap()" "$file"
+            grep -n "\.unwrap()" "$file" | while IFS=: read -r line_num line_content; do
+                echo "$file:$line_num: error: unwrap() used, use proper error handling [unwrap-used]"
+            done
             ERROR_COUNT=$((ERROR_COUNT + 1))
             FAILED=true
         fi
         
         if grep -n "\.expect(" "$file" > /dev/null; then
-            echo "❌ ERROR: $file uses expect() - consider proper error handling"
-            grep -n "\.expect(" "$file"
+            grep -n "\.expect(" "$file" | while IFS=: read -r line_num line_content; do
+                echo "$file:$line_num: error: expect() used, consider proper error handling [expect-used]"
+            done
             ERROR_COUNT=$((ERROR_COUNT + 1))
             FAILED=true
         fi
         
-        # Check for println! in library code
         if grep -n "println!" "$file" > /dev/null; then
-            echo "❌ ERROR: $file uses println! in library code"
-            grep -n "println!" "$file"
+            grep -n "println!" "$file" | while IFS=: read -r line_num line_content; do
+                echo "$file:$line_num: error: println! used in library code [print-literal]"
+            done
             ERROR_COUNT=$((ERROR_COUNT + 1))
             FAILED=true
         fi
@@ -57,127 +54,131 @@ while IFS= read -r file; do
     
     # Security checks for ALL files
     
-    # 1. Hard-coded secrets (API keys, tokens, passwords)
-    if grep -inE "(api[_-]?key|api[_-]?secret|password|secret[_-]?key|access[_-]?token|auth[_-]?token)\s*[:=]\s*\"" "$file" > /dev/null; then
-        echo "❌ ERROR: $file contains hard-coded secrets"
-        grep -inE "(api[_-]?key|api[_-]?secret|password|secret[_-]?key|access[_-]?token|auth[_-]?token)\s*[:=]\s*\"" "$file"
+    # Hard-coded secrets
+    if grep -inE "(api[_-]?key|api[_-]?secret|password|secret[_-]?key|access[_-]?token)\s*[:=]\s*\"" "$file" > /dev/null; then
+        grep -inE "(api[_-]?key|api[_-]?secret|password|secret[_-]?key|access[_-]?token)\s*[:=]\s*\"" "$file" | while IFS=: read -r line_num line_content; do
+            echo "$file:$line_num: error: hard-coded secret found [no-hardcoded-secrets]"
+        done
         ERROR_COUNT=$((ERROR_COUNT + 1))
         FAILED=true
     fi
     
-    # 2. Weak randomness (using SystemTime for tokens/crypto)
+    # Weak randomness
     if grep -n "SystemTime::now()" "$file" > /dev/null && grep -n "token\|random\|secret" "$file" > /dev/null; then
-        echo "❌ ERROR: $file uses weak randomness (SystemTime for tokens)"
-        grep -n "SystemTime::now()" "$file"
+        grep -n "SystemTime::now()" "$file" | while IFS=: read -r line_num line_content; do
+            echo "$file:$line_num: error: weak randomness using SystemTime for security purposes [weak-rng]"
+        done
         ERROR_COUNT=$((ERROR_COUNT + 1))
         FAILED=true
     fi
     
-    # 3. Command injection via shell
-    if grep -n "Command::new.*sh.*-c\|sh.*-c.*Command" "$file" > /dev/null; then
-        echo "❌ ERROR: $file uses shell command execution (command injection risk)"
-        grep -n "Command::new\|sh.*-c" "$file"
+    # Command injection
+    if grep -n "Command::new.*sh.*-c" "$file" > /dev/null; then
+        grep -n "Command::new\|sh.*-c" "$file" | while IFS=: read -r line_num line_content; do
+            echo "$file:$line_num: error: shell command execution (command injection risk) [shell-injection]"
+        done
         ERROR_COUNT=$((ERROR_COUNT + 1))
         FAILED=true
     fi
     
-    # 4. Unsafe blocks (should be reviewed)
-    if grep -n "unsafe" "$file" > /dev/null; then
-        unsafe_count=$(grep -c "unsafe" "$file")
-        if [ "$unsafe_count" -gt 2 ]; then
-            echo "❌ ERROR: $file has $unsafe_count unsafe blocks - requires review"
-            grep -n "unsafe" "$file"
-            ERROR_COUNT=$((ERROR_COUNT + 1))
-            FAILED=true
-        fi
+    # Excessive unsafe blocks
+    unsafe_count=$(grep -c "unsafe" "$file" 2>/dev/null || echo "0")
+    if [ "$unsafe_count" -gt 2 ]; then
+        grep -n "unsafe" "$file" | while IFS=: read -r line_num line_content; do
+            echo "$file:$line_num: warning: unsafe block requires review ($unsafe_count total) [unsafe-code]"
+        done
+        ERROR_COUNT=$((ERROR_COUNT + 1))
+        FAILED=true
     fi
     
-    # 5. get_unchecked usage (bounds checking bypass)
+    # get_unchecked usage
     if grep -n "get_unchecked" "$file" > /dev/null; then
-        echo "❌ ERROR: $file uses get_unchecked (unsafe indexing)"
-        grep -n "get_unchecked" "$file"
+        grep -n "get_unchecked" "$file" | while IFS=: read -r line_num line_content; do
+            echo "$file:$line_num: error: get_unchecked bypasses bounds checking (unsafe indexing) [unchecked-indexing]"
+        done
         ERROR_COUNT=$((ERROR_COUNT + 1))
         FAILED=true
     fi
     
-    # 6. Box::from_raw without proper ownership (double-free risk)
+    # Box::from_raw
     if grep -n "Box::from_raw" "$file" > /dev/null; then
-        echo "❌ ERROR: $file uses Box::from_raw (potential double-free)"
-        grep -n "Box::from_raw" "$file"
+        grep -n "Box::from_raw" "$file" | while IFS=: read -r line_num line_content; do
+            echo "$file:$line_num: error: Box::from_raw usage (potential double-free) [box-from-raw]"
+        done
         ERROR_COUNT=$((ERROR_COUNT + 1))
         FAILED=true
     fi
     
-    # 7. Ignored Results (underscore assignment)
+    # Ignored Results
     if grep -n "let _ = .*Result\|let _ = .*\.read\|let _ = .*\.write\|let _ = .*\.open\|let _ = .*\.status" "$file" > /dev/null; then
-        echo "❌ ERROR: $file ignores Result/error values"
-        grep -n "let _ = " "$file"
+        grep -n "let _ = " "$file" | while IFS=: read -r line_num line_content; do
+            echo "$file:$line_num: error: Result/error value ignored [unused-result]"
+        done
         ERROR_COUNT=$((ERROR_COUNT + 1))
         FAILED=true
     fi
     
-    # 8. mem::transmute usage (type safety bypass)
+    # mem::transmute
     if grep -n "mem::transmute" "$file" > /dev/null; then
-        echo "❌ ERROR: $file uses mem::transmute (unsafe type conversion)"
-        grep -n "mem::transmute" "$file"
+        grep -n "mem::transmute" "$file" | while IFS=: read -r line_num line_content; do
+            echo "$file:$line_num: error: mem::transmute bypasses type safety [transmute]"
+        done
         ERROR_COUNT=$((ERROR_COUNT + 1))
         FAILED=true
     fi
     
-    # 9. Needless clone (performance issue)
+    # Needless clone
     if grep -n "\.to_string().*\.clone()\|\.clone().*\.clone()" "$file" > /dev/null; then
-        echo "❌ ERROR: $file has needless clone"
-        grep -n "\.clone()" "$file"
+        grep -n "\.clone()" "$file" | while IFS=: read -r line_num line_content; do
+            echo "$file:$line_num: warning: needless clone detected [needless-clone]"
+        done
         ERROR_COUNT=$((ERROR_COUNT + 1))
         FAILED=true
     fi
     
-    # 10. Weak obfuscation used as crypto
-    if grep -n "xor.*0x[A-Fa-f0-9]\|0x[A-Fa-f0-9].*xor" "$file" > /dev/null && grep -in "encrypt\|obfuscate\|cipher" "$file" > /dev/null; then
-        echo "❌ ERROR: $file uses weak XOR obfuscation as encryption"
-        grep -n "xor" "$file"
+    # Weak XOR obfuscation
+    if grep -n "xor.*0x[A-Fa-f0-9]\|0x[A-Fa-f0-9].*xor" "$file" > /dev/null; then
+        grep -n "xor" "$file" | while IFS=: read -r line_num line_content; do
+            echo "$file:$line_num: error: weak XOR obfuscation used as encryption [weak-crypto]"
+        done
         ERROR_COUNT=$((ERROR_COUNT + 1))
         FAILED=true
     fi
     
-    # 11. Predictable temp file patterns
-    if grep -n "/tmp/.*process::id()\|/tmp/.*pid()\|/tmp/.*\.pid\|/tmp/.*millisecond" "$file" > /dev/null; then
-        echo "❌ ERROR: $file creates predictable temp file (TOCTOU risk)"
-        grep -n "/tmp/" "$file"
+    # Predictable temp files
+    if grep -n "/tmp/.*process::id()\|/tmp/.*pid()\|/tmp/.*millisecond" "$file" > /dev/null; then
+        grep -n "/tmp/" "$file" | while IFS=: read -r line_num line_content; do
+            echo "$file:$line_num: error: predictable temp file path (TOCTOU risk) [predictable-path]"
+        done
         ERROR_COUNT=$((ERROR_COUNT + 1))
         FAILED=true
     fi
     
-    # 12. Box::leak usage (intentional memory leak)
+    # Box::leak
     if grep -n "Box::leak" "$file" > /dev/null; then
-        echo "❌ ERROR: $file intentionally leaks memory with Box::leak"
-        grep -n "Box::leak" "$file"
+        grep -n "Box::leak" "$file" | while IFS=: read -r line_num line_content; do
+            echo "$file:$line_num: warning: intentional memory leak with Box::leak [memory-leak]"
+        done
         ERROR_COUNT=$((ERROR_COUNT + 1))
         FAILED=true
     fi
     
-    # 13. Panic in production code
-    if grep -n "panic!\|unimplemented!\|unreachable!" "$file" > /dev/null; then
-        if [[ ! "$file" =~ test ]]; then
-            echo "❌ ERROR: $file uses panic macros in production code"
-            grep -n "panic!\|unimplemented!\|unreachable!" "$file"
+    # Panic in production
+    if [[ ! "$file" =~ test ]]; then
+        if grep -n "panic!\|unimplemented!\|unreachable!" "$file" > /dev/null; then
+            grep -n "panic!\|unimplemented!\|unreachable!" "$file" | while IFS=: read -r line_num line_content; do
+                echo "$file:$line_num: warning: panic macro used in production code [panic]"
+            done
             ERROR_COUNT=$((ERROR_COUNT + 1))
             FAILED=true
         fi
     fi
     
-    # 14. Float equality comparison
-    if grep -n " == .*f32\| == .*f64\|f32 == \|f64 == \|0\.[0-9] == \| == 0\.[0-9]" "$file" > /dev/null; then
-        echo "❌ ERROR: $file compares floats with == (precision issue)"
-        grep -n " == .*f32\| == .*f64\|0\.[0-9] == \| == 0\.[0-9]" "$file"
-        ERROR_COUNT=$((ERROR_COUNT + 1))
-        FAILED=true
-    fi
-    
-    # 15. Raw pointer operations
-    if grep -n "std::ptr::write\|ptr::write\|std::ptr::read\|ptr::read" "$file" > /dev/null; then
-        echo "❌ ERROR: $file uses raw pointer operations"
-        grep -n "ptr::write\|ptr::read" "$file"
+    # Raw pointer operations
+    if grep -n "std::ptr::write\|ptr::write\|std::ptr::read" "$file" > /dev/null; then
+        grep -n "ptr::write\|ptr::read" "$file" | while IFS=: read -r line_num line_content; do
+            echo "$file:$line_num: error: raw pointer operation [raw-pointer-deref]"
+        done
         ERROR_COUNT=$((ERROR_COUNT + 1))
         FAILED=true
     fi

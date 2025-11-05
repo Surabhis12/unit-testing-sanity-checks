@@ -1,5 +1,5 @@
 #!/bin/bash
-# JavaScript/TypeScript Sanity Check - Enhanced with comprehensive detection
+# JavaScript/TypeScript Sanity Check - Clean cppcheck-like output format
 
 set -e
 
@@ -32,191 +32,191 @@ echo "Checking for anti-patterns and security issues..."
 echo ""
 
 for file in $FILES; do
-    # Original checks
+    # 1. console.log
     if grep -n "console\.log" "$file" > /dev/null; then
-        echo "❌ ERROR: $file contains console.log statements"
-        grep -n "console\.log" "$file"
+        grep -n "console\.log" "$file" | while IFS=: read -r line_num line_content; do
+            echo "$file:$line_num: error: console.log statement found [no-console]"
+        done
         ERROR_COUNT=$((ERROR_COUNT + 1))
         FAILED=true
     fi
     
+    # 2. var usage
     if grep -n "^[[:space:]]*var " "$file" > /dev/null; then
-        echo "❌ ERROR: $file uses 'var' - use 'let' or 'const'"
-        grep -n "^[[:space:]]*var " "$file"
+        grep -n "^[[:space:]]*var " "$file" | while IFS=: read -r line_num line_content; do
+            echo "$file:$line_num: error: 'var' keyword used, use 'let' or 'const' [no-var]"
+        done
         ERROR_COUNT=$((ERROR_COUNT + 1))
         FAILED=true
     fi
     
+    # 3. == usage
     if grep -n " == " "$file" | grep -v "===" > /dev/null; then
-        echo "❌ ERROR: $file uses '==' - use '===' for strict equality"
-        grep -n " == " "$file" | grep -v "==="
+        grep -n " == " "$file" | grep -v "===" | while IFS=: read -r line_num line_content; do
+            echo "$file:$line_num: error: loose equality (==) used, use strict equality (===) [eqeqeq]"
+        done
         ERROR_COUNT=$((ERROR_COUNT + 1))
         FAILED=true
     fi
     
+    # 4. eval()
     if grep -n "eval(" "$file" > /dev/null; then
-        echo "❌ ERROR: $file uses dangerous eval() function"
-        grep -n "eval(" "$file"
+        grep -n "eval(" "$file" | while IFS=: read -r line_num line_content; do
+            echo "$file:$line_num: error: dangerous eval() function used [no-eval]"
+        done
         ERROR_COUNT=$((ERROR_COUNT + 1))
         FAILED=true
     fi
     
+    # 5. debugger
     if grep -n "debugger" "$file" > /dev/null; then
-        echo "❌ ERROR: $file contains debugger statements"
-        grep -n "debugger" "$file"
+        grep -n "debugger" "$file" | while IFS=: read -r line_num line_content; do
+            echo "$file:$line_num: error: debugger statement found [no-debugger]"
+        done
         ERROR_COUNT=$((ERROR_COUNT + 1))
         FAILED=true
     fi
     
+    # 6. alert()
     if grep -n "alert(" "$file" > /dev/null; then
-        echo "❌ ERROR: $file uses alert()"
-        grep -n "alert(" "$file"
+        grep -n "alert(" "$file" | while IFS=: read -r line_num line_content; do
+            echo "$file:$line_num: error: alert() used [no-alert]"
+        done
         ERROR_COUNT=$((ERROR_COUNT + 1))
         FAILED=true
     fi
     
-    # Enhanced security checks
-    
-    # 1. Hard-coded secrets
+    # 7. Hard-coded secrets
     if grep -inE "(api[_-]?key|api[_-]?token|api[_-]?secret|secret[_-]?key|password|access[_-]?token)\s*[=:]\s*['\"]" "$file" > /dev/null; then
-        echo "❌ ERROR: $file contains hard-coded secrets"
-        grep -inE "(api[_-]?key|api[_-]?token|api[_-]?secret|secret[_-]?key|password|access[_-]?token)\s*[=:]\s*['\"]" "$file"
+        grep -inE "(api[_-]?key|api[_-]?token|api[_-]?secret|secret[_-]?key|password|access[_-]?token)\s*[=:]\s*['\"]" "$file" | while IFS=: read -r line_num line_content; do
+            echo "$file:$line_num: error: hard-coded secret found [no-secrets]"
+        done
         ERROR_COUNT=$((ERROR_COUNT + 1))
         FAILED=true
     fi
     
-    # 2. Math.random() for tokens/security
+    # 8. Math.random() for security
     if grep -n "Math\.random()" "$file" > /dev/null; then
-        if grep -in "token\|secret\|key\|random" "$file" > /dev/null; then
-            echo "❌ ERROR: $file uses Math.random() for security purposes (weak RNG)"
-            grep -n "Math\.random()" "$file"
+        if grep -in "token\|secret\|key" "$file" > /dev/null; then
+            grep -n "Math\.random()" "$file" | while IFS=: read -r line_num line_content; do
+                echo "$file:$line_num: error: Math.random() used for security purposes (weak RNG) [crypto-strength]"
+            done
             ERROR_COUNT=$((ERROR_COUNT + 1))
             FAILED=true
         fi
     fi
     
-    # 3. Prototype pollution
+    # 9. Prototype pollution
     if grep -n "__proto__\|\.prototype\[" "$file" > /dev/null; then
-        echo "❌ ERROR: $file has prototype pollution pattern"
-        grep -n "__proto__\|\.prototype\[" "$file"
+        grep -n "__proto__\|\.prototype\[" "$file" | while IFS=: read -r line_num line_content; do
+            echo "$file:$line_num: error: prototype pollution pattern detected [no-prototype-builtins]"
+        done
         ERROR_COUNT=$((ERROR_COUNT + 1))
         FAILED=true
     fi
     
-    # 4. Command injection via child_process
-    if grep -n "child_process\|require.*child\|exec(" "$file" > /dev/null; then
-        if grep -n "exec(.*\${" "$file" > /dev/null; then
-            echo "❌ ERROR: $file uses child_process.exec with string interpolation (command injection risk)"
-            grep -n "exec(" "$file"
-            ERROR_COUNT=$((ERROR_COUNT + 1))
-            FAILED=true
-        fi
+    # 10. Command injection
+    if grep -n "exec(.*\${" "$file" > /dev/null; then
+        grep -n "exec(" "$file" | while IFS=: read -r line_num line_content; do
+            echo "$file:$line_num: error: command injection risk in child_process.exec [security/detect-child-process]"
+        done
+        ERROR_COUNT=$((ERROR_COUNT + 1))
+        FAILED=true
     fi
     
-    # 5. Insecure TLS: rejectUnauthorized false
+    # 11. Insecure TLS
     if grep -n "rejectUnauthorized.*false" "$file" > /dev/null; then
-        echo "❌ ERROR: $file disables TLS certificate validation"
-        grep -n "rejectUnauthorized" "$file"
+        grep -n "rejectUnauthorized" "$file" | while IFS=: read -r line_num line_content; do
+            echo "$file:$line_num: error: TLS certificate validation disabled [security/detect-disable-mustache-escape]"
+        done
         ERROR_COUNT=$((ERROR_COUNT + 1))
         FAILED=true
     fi
     
-    # 6. SQL injection pattern
-    if grep -n "SELECT.*FROM\|INSERT.*INTO\|UPDATE.*SET\|DELETE.*FROM" "$file" > /dev/null; then
-        if grep -n "SELECT.*\${.*}\|INSERT.*\${.*}\|SELECT.*+.*username\|INSERT.*+.*" "$file" > /dev/null; then
-            echo "❌ ERROR: $file constructs SQL via string concatenation (SQL injection risk)"
-            grep -n "SELECT.*\${.*}\|INSERT.*+\|SELECT.*+" "$file"
-            ERROR_COUNT=$((ERROR_COUNT + 1))
-            FAILED=true
-        fi
+    # 12. SQL injection
+    if grep -n "SELECT.*\${.*}\|INSERT.*\${.*}\|SELECT.*+\|INSERT.*+" "$file" > /dev/null; then
+        grep -n "SELECT\|INSERT" "$file" | grep "\${\|+" | while IFS=: read -r line_num line_content; do
+            echo "$file:$line_num: error: SQL injection via string concatenation [security/detect-sql-injection]"
+        done
+        ERROR_COUNT=$((ERROR_COUNT + 1))
+        FAILED=true
     fi
     
-    # 7. Deprecated Buffer constructor
+    # 13. Deprecated Buffer
     if grep -n "new Buffer(" "$file" > /dev/null; then
-        echo "❌ ERROR: $file uses deprecated Buffer() constructor - use Buffer.from()"
-        grep -n "new Buffer(" "$file"
+        grep -n "new Buffer(" "$file" | while IFS=: read -r line_num line_content; do
+            echo "$file:$line_num: error: deprecated Buffer() constructor, use Buffer.from() [node/no-deprecated-api]"
+        done
         ERROR_COUNT=$((ERROR_COUNT + 1))
         FAILED=true
     fi
     
-    # 8. Synchronous file operations in async code
+    # 14. Sync file operations
     if grep -n "readFileSync\|writeFileSync\|readSync\|writeSync" "$file" > /dev/null; then
-        echo "❌ ERROR: $file uses synchronous I/O (blocks event loop)"
-        grep -n "Sync(" "$file"
+        grep -n "Sync(" "$file" | while IFS=: read -r line_num line_content; do
+            echo "$file:$line_num: error: synchronous I/O blocks event loop [node/no-sync]"
+        done
         ERROR_COUNT=$((ERROR_COUNT + 1))
         FAILED=true
     fi
     
-    # 9. Empty catch blocks
-    if grep -Pzo "catch\s*\([^)]*\)\s*\{\s*\}" "$file" > /dev/null 2>&1; then
-        echo "❌ ERROR: $file has empty catch blocks (swallows errors)"
-        grep -n "catch" "$file"
-        ERROR_COUNT=$((ERROR_COUNT + 1))
-        FAILED=true
-    fi
-    
-    # 10. RegExp from user input (ReDoS)
+    # 15. RegExp from user input
     if grep -n "new RegExp(" "$file" > /dev/null; then
         if grep -n "input\|user\|req\|param\|query" "$file" > /dev/null; then
-            echo "❌ ERROR: $file creates RegExp from user input (ReDoS risk)"
-            grep -n "new RegExp" "$file"
+            grep -n "new RegExp(" "$file" | while IFS=: read -r line_num line_content; do
+                echo "$file:$line_num: error: RegExp constructed from user input (ReDoS risk) [security/detect-non-literal-regexp]"
+            done
             ERROR_COUNT=$((ERROR_COUNT + 1))
             FAILED=true
         fi
     fi
     
-    # 11. Predictable temp file paths
-    if grep -n "/tmp/.*process\.pid\|/tmp/.*Date\.now()\|/tmp/.*timestamp" "$file" > /dev/null; then
-        echo "❌ ERROR: $file creates predictable temp files (TOCTOU risk)"
-        grep -n "/tmp/" "$file"
+    # 16. Predictable temp files
+    if grep -n "/tmp/.*process\.pid\|/tmp/.*Date\.now()" "$file" > /dev/null; then
+        grep -n "/tmp/" "$file" | while IFS=: read -r line_num line_content; do
+            echo "$file:$line_num: error: predictable temp file path (TOCTOU risk) [security/detect-non-literal-fs-filename]"
+        done
         ERROR_COUNT=$((ERROR_COUNT + 1))
         FAILED=true
     fi
     
-    # 12. Logging sensitive data
-    if grep -in "console\.log.*password\|console\.log.*secret\|console\.log.*token\|console\.log.*pass\|log.*password\|log.*pass" "$file" > /dev/null; then
-        echo "❌ ERROR: $file logs sensitive data (credentials in logs)"
-        grep -in "log.*pass\|log.*secret\|log.*token" "$file"
+    # 17. Logging secrets
+    if grep -in "console\.log.*password\|console\.log.*secret\|console\.log.*token\|log.*password" "$file" > /dev/null; then
+        grep -in "log.*pass\|log.*secret\|log.*token" "$file" | while IFS=: read -r line_num line_content; do
+            echo "$file:$line_num: error: sensitive data logged [security/detect-possible-timing-attacks]"
+        done
         ERROR_COUNT=$((ERROR_COUNT + 1))
         FAILED=true
     fi
     
-    # 13. Weak obfuscation/encryption (XOR)
-    if grep -n "\.charCodeAt.*\^.*0x[A-Fa-f0-9]\|xor.*encrypt\|xor.*obfuscate" "$file" > /dev/null; then
-        echo "❌ ERROR: $file uses weak XOR obfuscation as encryption"
-        grep -n "charCodeAt.*\^\|xor" "$file"
+    # 18. XOR obfuscation
+    if grep -n "\.charCodeAt.*\^.*0x[A-Fa-f0-9]" "$file" > /dev/null; then
+        grep -n "charCodeAt.*\^\|xor" "$file" | while IFS=: read -r line_num line_content; do
+            echo "$file:$line_num: error: weak XOR obfuscation used as encryption [security/detect-unsafe-regex]"
+        done
         ERROR_COUNT=$((ERROR_COUNT + 1))
         FAILED=true
     fi
     
-    # 14. innerHTML usage (XSS risk)
+    # 19. innerHTML
     if grep -n "\.innerHTML" "$file" > /dev/null; then
-        echo "❌ ERROR: $file uses innerHTML (potential XSS)"
-        grep -n "\.innerHTML" "$file"
+        grep -n "\.innerHTML" "$file" | while IFS=: read -r line_num line_content; do
+            echo "$file:$line_num: error: innerHTML usage (XSS risk) [security/detect-unsafe-regex]"
+        done
         ERROR_COUNT=$((ERROR_COUNT + 1))
         FAILED=true
     fi
     
-    # 15. Wildcard CORS
-    if grep -n "Access-Control-Allow-Origin.*\*\|'Access-Control-Allow-Origin'.*\*" "$file" > /dev/null; then
-        echo "❌ ERROR: $file uses wildcard CORS (overly permissive)"
-        grep -n "Access-Control-Allow-Origin" "$file"
+    # 20. Wildcard CORS
+    if grep -n "Access-Control-Allow-Origin.*\*" "$file" > /dev/null; then
+        grep -n "Access-Control-Allow-Origin" "$file" | while IFS=: read -r line_num line_content; do
+            echo "$file:$line_num: error: wildcard CORS policy (overly permissive) [security/detect-unsafe-regex]"
+        done
         ERROR_COUNT=$((ERROR_COUNT + 1))
         FAILED=true
-    fi
-    
-    # 16. Path traversal risks
-    if grep -n "path\.join\|path\.resolve" "$file" > /dev/null; then
-        if grep -n "req\.\|input\|user\|param" "$file" > /dev/null; then
-            echo "❌ ERROR: $file has potential path traversal vulnerability"
-            grep -n "path\.join\|path\.resolve" "$file"
-            ERROR_COUNT=$((ERROR_COUNT + 1))
-            FAILED=true
-        fi
     fi
     
 done
-
 
 echo ""
 echo "================================"

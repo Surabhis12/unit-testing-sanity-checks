@@ -150,7 +150,7 @@ jobs:
             echo "⚠️ STATUS SET TO: unknown"
           fi
       
-      - name: Post results as PR comment (Complete error visibility!)
+      - name: Post results as PR comment (Clean cppcheck-like format!)
         if: steps.changed-files.outputs.any_changed == 'true' && always()
         uses: actions/github-script@v6
         with:
@@ -176,10 +176,9 @@ jobs:
               
               errorSummary = '\n## 🚨 Key Issues Found:\n\n';
               
-              // Track current language and collect ALL output lines
+              // Track errors by language
               let currentLanguage = '';
               let languageErrors = {};
-              let captureMode = false;
               
               for (let i = 0; i < lines.length; i++) {
                 const line = lines[i];
@@ -188,66 +187,33 @@ jobs:
                 if (line.includes('C/C++ SANITY CHECK')) {
                   currentLanguage = 'C/C++';
                   languageErrors[currentLanguage] = [];
-                  captureMode = true;
-                  continue;
                 } else if (line.includes('RUST SANITY CHECK')) {
                   currentLanguage = 'Rust';
                   languageErrors[currentLanguage] = [];
-                  captureMode = true;
-                  continue;
                 } else if (line.includes('JAVASCRIPT SANITY CHECK')) {
                   currentLanguage = 'JavaScript';
                   languageErrors[currentLanguage] = [];
-                  captureMode = true;
-                  continue;
                 } else if (line.includes('KOTLIN SANITY CHECK')) {
                   currentLanguage = 'Kotlin';
                   languageErrors[currentLanguage] = [];
-                  captureMode = true;
-                  continue;
                 } else if (line.includes('JAVA SANITY CHECK')) {
                   currentLanguage = 'Java';
                   languageErrors[currentLanguage] = [];
-                  captureMode = true;
-                  continue;
                 } else if (line.includes('SWIFT SANITY CHECK')) {
                   currentLanguage = 'Swift';
                   languageErrors[currentLanguage] = [];
-                  captureMode = true;
-                  continue;
                 } else if (line.includes('FLUTTER/DART SANITY CHECK')) {
                   currentLanguage = 'Dart/Flutter';
                   languageErrors[currentLanguage] = [];
-                  captureMode = true;
-                  continue;
                 }
                 
-                // Stop capturing when we hit the check PASSED/FAILED line
-                if (line.includes('sanity check PASSED') || line.includes('sanity check FAILED')) {
-                  captureMode = false;
-                  continue;
-                }
-                
-                // Stop at section separators
-                if (line.includes('>>>') || line.includes('Running') || line.includes('================================')) {
-                  if (line.includes('>>>')) {
-                    captureMode = false;
-                  }
-                  continue;
-                }
-                
-                // Capture EVERYTHING while in capture mode for this language
-                if (captureMode && currentLanguage && line.trim() !== '') {
-                  // Skip the "Checking for:" intro lines
-                  if (line.includes('Checking for:') || line.includes('✓')) {
-                    continue;
-                  }
-                  
-                  languageErrors[currentLanguage].push(line);
+                // Capture error lines in cppcheck-like format: file:line: severity: message
+                if (currentLanguage && line.match(/test-files\/.*:\d+:.*(?:error|warning):/)) {
+                  languageErrors[currentLanguage].push(line.trim());
                 }
               }
               
-              // Build summary by language - show EVERYTHING
+              // Build summary - show ALL errors in clean format
               let totalErrors = 0;
               
               for (const [lang, errors] of Object.entries(languageErrors)) {
@@ -255,7 +221,7 @@ jobs:
                   totalErrors += errors.length;
                   errorSummary += `### ${lang}\n`;
                   
-                  // Show ALL errors, no limit
+                  // Show ALL errors without truncation
                   errors.forEach(error => {
                     errorSummary += `${error}\n`;
                   });
@@ -275,7 +241,7 @@ jobs:
             ${errorSummary}
             
             <details>
-            <summary>📋 Click to view full detailed results (with headers and formatting)</summary>
+            <summary>📋 Click to view full detailed results (with code context)</summary>
             
             \`\`\`
             ${results}
