@@ -16,6 +16,7 @@ class Calculator {
     }
     _result = a / b;
     return _result;
+    
   }
 }
 void main() {
